@@ -1,15 +1,8 @@
-#include <bits/types/FILE.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include "vec3.h"
+#include "common.h"
 
-#define u8 uint8_t 
 #define RGB8_STRIDE 3
-
-float clamp(float d, float min, float max) {
-  const float t = d < min ? min : d;
-  return t > max ? max : t;
-}
 
 // Data should be an RGB8 pixel buffer
 void to_ppm(u8* data, int width, int height, const char* path) {
@@ -46,27 +39,13 @@ void write_pixel_rgb_u8(int x, int y, u8* data, int width, int height, u8 r, u8 
 }
 
 void write_pixel_rgb_f32(int x, int y, u8* data, int width, int height, float r, float g, float b) {
-	u8 red = (u8) (clamp(r, 0.0f, 1.0f) * 255);
-	u8 green = (u8) (clamp(g, 0.0f, 1.0f) * 255);
-	u8 blue = (u8) (clamp(b, 0.0f, 1.0f) * 255);
+	u8 red 		= (u8) (clamp(r, 0.0f, 1.0f) * 255);
+	u8 green 	= (u8) (clamp(g, 0.0f, 1.0f) * 255);
+	u8 blue 	= (u8) (clamp(b, 0.0f, 1.0f) * 255);
 
 	write_pixel_rgb_u8(x, y, data, width, height, red, green, blue);
 }
 
-int main(void) {
-	int width = 100, height = 100;
-	u8* pixels = (u8*) malloc(width * height * 3 * sizeof(u8));
-
-	
-	for (int y = 0; y < height; y++) {
-		for (int x = 0; x < width; x++) {
-			float u = (float)(x) / width;
-			float v = (float)(y) / height;
-			write_pixel_rgb_f32(x, y, pixels, width, height, u, v, 0);
-		}	
-	}
-
-	to_ppm(pixels, width, height, "./test.ppm");
-
-	return 1;
+void write_pixel_rgb_vec3(int x, int y, u8* data, int width, int height, Vec3 color) {
+	write_pixel_rgb_f32(x, y, data, width, height, color.x, color.y, color.z);
 }
