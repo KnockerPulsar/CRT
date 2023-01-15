@@ -1,49 +1,22 @@
+#include <memory>
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "camera.h"
+#include "crt.h"
+#include "hit_record.h"
+#include "hittable_list.h"
+#include "interval.h"
+#include "sphere.h"
 #include "vec3.h"
 #include "common.h"
 #include "ppm.h"
+#include "ray.h"
 
-
-struct Ray {
-	Vec3 o, d;
-
-	Ray(Vec3 o, Vec3 d): o(o), d(d) {}
-	Vec3 at(float t) { return o + d * t; }
-};
-
-float hit_sphere(Vec3 center, float radius, Ray r) {
-		/* vec3 oc = r.origin() - center; */
-		/* auto a = r.direction().length_squared(); */
-		/* auto half_b = dot(oc, r.direction()); */
-		/* auto c = oc.length_squared() - radius*radius; */
-		/* auto discriminant = half_b*half_b - a*c; */
-		/*  */
-		/* if (discriminant < 0) { */
-		/* 	return -1.0; */
-		/* } else { */
-		/* 	return (-half_b - sqrt(discriminant) ) / a; */
-		/* } */
-
-		Vec3 oc = r.o - center;
-		float a = r.d.length_squared();
-		float half_b = dot(oc, r.d);
-		float c = oc.length_squared() - radius * radius;
-		float discriminant = half_b * half_b - a*c;
-
-		if(discriminant < 0) { 
-			return -1; 
-		} else {
-			return (-half_b - sqrt(discriminant)) / a;
-		}
-}
-
-Vec3 ray_color(Ray r) {
-	float t = hit_sphere(Vec3(0, 0, -1), 0.5, r);
-	if(t > 0) {
-		Vec3 n = unit_vector(r.at(t) - Vec3(0,0, -1));
-		return (n+1)* 0.5;
+Vec3 ray_color(Ray r, const HittableList& world) {
+	HitRecord rec;
+	if(world.hit(r, Interval(0, infinity), rec)) {
+		return (rec.normal+1) * 0.5;
 	}
 
 	Vec3 unit_direction = unit_vector(r.d);
@@ -54,32 +27,27 @@ Vec3 ray_color(Ray r) {
 
 
 int main(void) {
-	int width = 300, height = 300;
-	float aspect_ratio = (float) width / height;
+	int width = 300, height = 169, samples_per_pixel = 100;
 	u8* pixels = new u8[width * height * 3];
 
-	float viewport_height = 2.0f;
-	float viewport_width = aspect_ratio * viewport_height; 
-	float focal_length = 1;
+	Camera cam;
 
-	Vec3 origin = Vec3(0, 0, 0);
-	Vec3 horizontal = Vec3(viewport_width, 0, 0);
-	Vec3 vertical = Vec3(0, viewport_height, 0);
-
-	// auto lower_left_corner = origin - horizontal/2 - vertical/2 - vec3(0, 0, focal_length);
-	Vec3 lower_left_corner = origin - horizontal/2 - vertical/2 - Vec3(0, 0, focal_length);
+	HittableList world;
+	world.add_sphere(std::make_shared<Sphere>(Point3(0,0,-1), 0.5));
+	world.add_sphere(std::make_shared<Sphere>(Point3(0,-100.5,-1), 100));
 	
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
-			float s = (float)(x) / width;
-			float t = (float)(y) / height;
+			Color pixel_color;
+			for (int sample = 0; sample < samples_per_pixel; sample++) {
+				float s = (float)(x + random_float()) / (width  - 1);
+				float t = (float)(y + random_float()) / (height - 1);
 
-			// ray dir = lower_left_corner + s*horizontal + (1-t)*vertical - origin
-			Ray r = Ray(origin, lower_left_corner + s * horizontal + (1-t)*vertical - origin);
-			Vec3 color = ray_color(r);
-			
+				Ray r = cam.get_ray(s, t);
+				pixel_color += ray_color(r, world);
 
-			write_pixel_rgb_vec3(x, y, pixels, width, height, color);
+			}
+			write_pixel_rgb_vec3(x, y, pixels, width, height, pixel_color, samples_per_pixel);
 		}	
 	}
 

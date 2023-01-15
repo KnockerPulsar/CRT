@@ -2,8 +2,9 @@
 #include <math.h>
 
 struct Vec3 {
-	float x, y, z;
+	float x = 0, y = 0, z = 0;
 
+	Vec3() = default;
 	Vec3(float x, float y, float z) : x(x), y(y), z(z) { }
 
 	Vec3 operator+(Vec3 r) const { return (Vec3) { x + r.x, y + r.y, z + r.z};  }
@@ -11,10 +12,14 @@ struct Vec3 {
 	Vec3 operator-(Vec3 r) const { return (Vec3) { x - r.x, y - r.y, z - r.z};  }
 	Vec3 operator/(Vec3 r) const { return (Vec3) { x / r.x, y / r.y, z / r.z }; }
 
-	Vec3 operator+(float r) { return (Vec3) { x + r, y + r, z + r }; }
-	Vec3 operator-(float r) { return (Vec3) { x - r, y - r, z - r }; }
-	Vec3 operator*(float r) { return (Vec3) { x * r, y * r, z * r }; }
-	Vec3 operator/(float r) { return (Vec3) { x / r, y / r, z / r }; }
+	Vec3 operator+(float r) const { return (Vec3) { x + r, y + r, z + r }; }
+	Vec3 operator-(float r) const { return (Vec3) { x - r, y - r, z - r }; }
+	Vec3 operator*(float r) const { return (Vec3) { x * r, y * r, z * r }; }
+	Vec3 operator/(float r) const { return (Vec3) { x / r, y / r, z / r }; }
+
+	Vec3 operator+=(Vec3 r) { x += r.x; y += r.y; z += r.z; return *this;	}
+
+	Vec3 operator-() const { return (Vec3) { -x, -y, -z }; }
 
 	float length() const { return sqrt(length_squared()); }
 	float length_squared() const { return x * x + y * y + z * z; }
@@ -37,3 +42,5 @@ Vec3 cross(Vec3 l, Vec3 r) {
 Vec3 operator*(float f, Vec3 v) { return v * f; }
 Vec3 operator/(float f, Vec3 v) { return v / f; }
 
+typedef Vec3 Point3;
+typedef Vec3 Color;
