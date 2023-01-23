@@ -10,6 +10,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall")
 
 
 set(SOURCES 
+  src/CLUtil.cpp
 )
 
 include_directories(
@@ -26,4 +27,5 @@ add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})
 target_link_libraries(
   ${PROJECT_NAME} 
   -lm 
+  -lOpenCL
 )

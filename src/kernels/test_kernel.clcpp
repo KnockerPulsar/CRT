@@ -1,0 +1,13 @@
+__kernel void render_kernel(
+		const int width,
+		const int height,
+		__write_only image2d_t output
+) {
+	float2 pos = {get_global_id(0), get_global_id(1)};
+
+	float u = (float)(pos.x) / (float)(width);
+	float v = (float)(pos.y) / (float)(height);
+	float3 final_color = (float3)(0.0f, u, v);
+
+	write_imagef(output, (int2)(pos.x,pos.y), (float4)(final_color, 1.0f));
+}
