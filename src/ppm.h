@@ -21,6 +21,12 @@ class PPMImage {
 			image.width = w;
 			image.height = h;
 
+			for (int y = 0; y < h; y++) {
+				for (int x = 0; x < w; x++) {
+					image.write_pixel_rgb_u8(x, y, 255, 0, 255, 1);
+				}	
+			}
+
 			return image;
 		}
 
@@ -48,6 +54,8 @@ class PPMImage {
 			}
 
 			fclose(f);
+
+			printf("Image successfully written at %s\n", path);
 		}
 
 		// Data should be an RGB8 pixel buffer
@@ -68,6 +76,19 @@ class PPMImage {
 		
 		void write_pixel_rgb_vec3(int x, int y, float3 color, int samples_per_pixel) {
 			write_pixel_rgb_f32(x, y, color.s[0], color.s[1], color.s[2], samples_per_pixel);
+		}
+
+		void from_rgb_f32(float* new_data) {
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					int index = (y * width + x) * RGBA8_STRIDE;
+					float r = new_data[index + 0];
+					float g = new_data[index + 1];
+					float b = new_data[index + 2];
+
+					write_pixel_rgb_f32(x, y, r, g, b, 1);
+				}
+			}
 		}
 };
 

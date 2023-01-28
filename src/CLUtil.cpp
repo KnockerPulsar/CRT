@@ -1,26 +1,41 @@
 #include "CLUtil.h"
+
 #include <CL/cl.h>
 #include <cmath>
 #include <optional>
 #include <ostream>
 #include <sstream>
+#include <string>
+#include <vector>
+
+using std::string, std::cout, std::vector, std::cerr, std::endl, std::optional;
 
 cl::Context setupCL() {
   cl_int                    err;
 
-  std::vector<cl::Platform> platformList;
+  vector<cl::Platform> platformList;
   cl::Platform::get(&platformList);
 
   clErr(!platformList.empty() ? CL_SUCCESS : -1);
 
-
-
   for(int i = 0; i < (int)platformList.size(); i++) {
-    std::string platformVendor;
+    string platformVendor;
+    string platformVersion;
+    string deviceVersion;
+    string clCVersion;
+    string deviceExtensions;
 
     platformList[i].getInfo((cl_platform_info)CL_PLATFORM_VENDOR, &platformVendor);
-    std::cerr << "Platform number is: " << i << std::endl;
-    std::cerr << "Platform is by: " << platformVendor << "\n";
+    platformList[i].getInfo((cl_platform_info)CL_PLATFORM_VERSION, &platformVersion);
+    /* platformList[i].getInfo((cl_platform_info)CL_DEVICE_VERSION, &deviceVersion); */
+    /* platformList[i].getInfo((cl_platform_info)CL_DEVICE_OPENCL_C_VERSION, &clCVersion); */
+    platformList[i].getInfo((cl_platform_info)CL_DEVICE_EXTENSIONS, &deviceExtensions);
+    cout << "Platform number is: " << i << endl;
+    cout << "Platform is by: " << platformVendor << "\n";
+    cout << "Platform version: " << platformVersion << "\n";
+    /* cout << "Device version: " << deviceVersion << "\n"; */
+    /* cout << "OpenCL C version: " << clCVersion << "\n"; */
+    cout << "Device extensions: " << deviceExtensions << "\n";
   }
 
   cl_context_properties cprops[3] = {
@@ -34,21 +49,22 @@ cl::Context setupCL() {
   return context;
 }
 
-auto loadKernel(std::string path) -> std::optional<std::string> {
+auto loadKernel(string path) -> optional<string> {
   std::ifstream in(path);
   
   if(!in) {
     return std::nullopt;
   }
 
-  std::string kernelSource = std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-  return std::make_optional(kernelSource);
+  string kernelSource = string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+  return make_optional(kernelSource);
 }
 
-auto build_cl_compile_flags(const std::vector<std::string>& includes) -> std::string {
+auto build_cl_compile_flags(const vector<string>& includes) -> string {
   std::stringstream s;
 
   s << "-DOPENCL ";
+  s << "-cl-std=CL2.0 ";
 
   for (const auto& include : includes) {
     s << "-I " <<  include << " ";
@@ -58,20 +74,23 @@ auto build_cl_compile_flags(const std::vector<std::string>& includes) -> std::st
 }
 
 auto buildProgram(
-    std::string kernelFile,
+    string kernelFile,
     cl::Context &context,
-    std::vector<cl::Device> devices,
-    const std::vector<std::string>& includes
-) -> std::optional<cl::Program> 
+    vector<cl::Device> devices,
+    const vector<string>& includes
+) -> optional<cl::Program> 
 {
-  std::optional<std::string> kernelSource = loadKernel(kernelFile);
+  optional<string> kernelSource = loadKernel(kernelFile);
 
-  if(!kernelSource.has_value()) return std::nullopt;
+  if(!kernelSource.has_value()) { 
+    cerr << "Error loading kernel at : " << kernelFile << endl;
+    return std::nullopt;
+  }
 
   cl::Program::Sources source{kernelSource.value()};
   cl::Program          program(context, source);
 
-  std::string flags = build_cl_compile_flags(includes);
+  string flags = build_cl_compile_flags(includes);
 
   int err = program.build(devices, flags.c_str());
 
@@ -84,9 +103,9 @@ auto buildProgram(
         continue;
 
       // Get the build log
-      std::string name     = dev.getInfo<CL_DEVICE_NAME>();
-      std::string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
-      std::cerr << "Build log for " << name << ":" << std::endl << buildlog << std::endl;
+      string name     = dev.getInfo<CL_DEVICE_NAME>();
+      string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
+      cerr << "Build log for " << name << ":" << endl << buildlog << endl;
     }
   }
 
@@ -94,7 +113,7 @@ auto buildProgram(
 }
 
 float sqrt(float a) {
-  return std::sqrt(a);
+  return sqrt(a);
 }
 
 float length(float3 a) {

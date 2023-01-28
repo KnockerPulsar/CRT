@@ -1,17 +1,26 @@
-#include "cl_def.h"
+#include "cl_def.cl"
 
 float degrees_to_radians(float degrees) {
 	return degrees * pi / 180.0f;
 }
 
-float random_float(uint2 seed1, uint seed2) {
-	uint t = seed2 ^ (seed2 << 11);  
-	uint result = seed1.x ^ (seed1.y >> 19) ^ (t ^ (t >> 8));
+// https://stackoverflow.com/a/16077942
+float random_float(uint2* seed) {
+	const float invMaxInt = 1.0f/4294967296.0f;
 
-	return result;
+	uint x = (*seed).x * 17 + (*seed).y * 13123;
+	(*seed).x = (x<<13) ^ x;
+	(*seed).y ^= (x<<7);
+
+	uint tmp =  
+		(x * (x * x * 15731 + 74323) + 871483) 
+		+ (x * (x * x * 13734 + 37828) + 234234) 
+		+ (x * (x * x * 11687 + 26461) + 137589);
+
+	return convert_float(tmp) * invMaxInt;
 }
 
-float random_float_ranged(uint2 seed1, uint seed2, float min, float max) {
-	return min + (max-min) * random_float(seed1, seed2);
+float random_float_ranged(uint2* seed1, float min, float max) {
+	return min + (max-min) * random_float(seed1);
 }
 

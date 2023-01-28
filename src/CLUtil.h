@@ -20,6 +20,8 @@
 #include <optional>
 #include <cmath>
 
+#include "cl_errors.h"
+
   cl::Context setupCL(); 
   auto loadKernel(std::string path) -> std::optional<std::string>;
   auto build_cl_compile_flags(const std::string& includes) -> std::string;
@@ -27,7 +29,7 @@
 
   inline void checkErr(cl_int err, const char *name) {
     if (err != CL_SUCCESS) {
-      std::cerr << "ERROR: " << name << " (" << err << ") " << std::endl;
+      std::cerr << "ERROR: " << name << " (" << clErrorString(err) << ") " << std::endl;
       exit(EXIT_FAILURE);
     }
   }

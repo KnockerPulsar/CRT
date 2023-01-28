@@ -1,7 +1,11 @@
+#pragma OPENCL EXTENSION cl_khr_srgb_image_writes : enable
+
 #include "sphere.h"
 #include "hit_record.h"
 #include "ray.h"
 #include "interval.h"
+#include "cl_util.cl"
+
 
 bool closest_hit(
 	Ray r,
@@ -39,30 +43,38 @@ float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count) {
 }
 
 kernel void render_kernel(
-		const int width,
-		const int height,
-		write_only image2d_t output,
-		constant Sphere* spheres, 
-		int sphere_count
+	read_write image2d_t input,
+	constant Sphere* spheres, 
+	int sphere_count,
+	global uint2* seeds
 ) {
+	const uint width = get_image_width(input);
+	const uint height = get_image_height(input);
+
 	const float aspect_ratio = (float)width / height;
 	const float viewport_height = 2.0;
 	const float viewport_width = aspect_ratio * viewport_height;
 	const float focal_length = 1.0;
-
+	
 	float3 origin = (float3)(0, 0, 0);
 	float3 horizontal = (float3)(viewport_width, 0, 0);
 	float3 vertical = (float3)(0, viewport_height, 0);
 	float3 lower_left_corner = origin - horizontal/2 - vertical/2 - (float3)(0, 0, focal_length);
-
+	
 	float2 pos = {get_global_id(0), get_global_id(1)};
-
-	float u = (float)(pos.x) / (float)(width-1);
-	float v = (float)(pos.y) / (float)(height-1);
-
+	
+	uint2 *seed1 = &seeds[get_global_id(0) + width * get_global_id(1)];
+	
+	float du = random_float(seed1);
+	float dv = random_float(seed1);
+	
+	float u = (float)(pos.x+du) / (float)(width-1);
+	float v = (float)(pos.y+dv) / (float)(height-1);
+	
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
-	float3 final_color = ray_color(r, spheres, sphere_count);
-
-	write_imagef(output, (int2)(pos.x,pos.y), (float4)(final_color, 1.0f));
+	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
+	float4 final_color = prev_color + (float4)(ray_color(r, spheres, sphere_count), 1.0);
+	
+	write_imagef(input, (int2)(pos.x,pos.y), final_color);
 }
