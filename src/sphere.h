@@ -14,7 +14,7 @@ Sphere sphere(float3 c, float r) {
 	return (Sphere) {c, r};
 }
 
-bool sphere_hit(const Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
+bool sphere_hit(constant Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
 	float3 oc = r->o - s->center;
 
 	float a = dot(r->d, r->d);

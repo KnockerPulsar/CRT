@@ -1,14 +1,35 @@
 #include "sphere.h"
+#include "hit_record.h"
 #include "ray.h"
+#include "interval.h"
 
-float3 ray_color(Ray r) {
-	Sphere s = sphere((float3)(0, 0, -1), 0.5);
+bool closest_hit(
+	Ray r,
+	constant Sphere* spheres,
+	int sphere_count,
+	Interval ray_t,
+	HitRecord* rec
+) {
+	HitRecord temp_rec;
+	bool hit_anything = false;
+	float closest_so_far = ray_t.max;
 
-	float t = sphere_hit(&s, &r);
-	if(t > 0) {
-		float3 N = normalize(ray_at(&r, t) - (float3)(0, 0, -1));
+	for(int i = 0; i < sphere_count; i++) {
+		if(sphere_hit(&spheres[i], &r, ray_t, &temp_rec)) {
+			hit_anything = true;
+			ray_t.max = temp_rec.t;
+			*rec = temp_rec;
+		}	
+	}
 
-		return 0.5f * (float3)(N.x + 1, N.y + 1, N.z + 1);
+	return hit_anything;
+}
+
+float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count) {
+
+	HitRecord rec;
+	if(closest_hit(r, spheres, sphere_count, interval(0, infinity), &rec)) {
+		return 0.5f * (rec.normal + (float3)(1, 1, 1));
 	}
 
 	float3 unit_direction = normalize(r.d);
@@ -17,10 +38,12 @@ float3 ray_color(Ray r) {
 	return (1-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0);
 }
 
-__kernel void render_kernel(
+kernel void render_kernel(
 		const int width,
 		const int height,
-		__write_only image2d_t output
+		write_only image2d_t output,
+		constant Sphere* spheres, 
+		int sphere_count
 ) {
 	const float aspect_ratio = (float)width / height;
 	const float viewport_height = 2.0;
@@ -39,7 +62,7 @@ __kernel void render_kernel(
 
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
-	float3 final_color = ray_color(r);
+	float3 final_color = ray_color(r, spheres, sphere_count);
 
 	write_imagef(output, (int2)(pos.x,pos.y), (float4)(final_color, 1.0f));
 }

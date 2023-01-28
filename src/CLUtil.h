@@ -13,6 +13,7 @@
 #define float cl_float
 #define uint  cl_uint
 #define uint2 cl_uint2
+#define constant const
 
 #include <iostream>
 #include <fstream>

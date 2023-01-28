@@ -17,7 +17,7 @@ int main(void) {
   cl::Context context = setupCL();
   std::vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
 
-  auto kernelPath = "src/kernels/test_kernel.clcpp";
+  auto kernelPath = "src/kernels/test_kernel.cl";
   auto includes = std::vector<std::string>{ "./src" };
   auto program = buildProgram(kernelPath, context, devices, includes);
 
@@ -36,24 +36,22 @@ int main(void) {
   clErr(err);
 
 
-  /* std::vector<Sphere> spheres; */
-  /* spheres.push_back(sphere({{0, 0, 0}}, 0.5f)); */
-  /*  */
-  /* cl::Buffer clObjects = cl::Buffer( */
-  /*     context,  */
-  /*     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,  */
-  /*     spheres.size() * sizeof(Sphere),  */
-  /*     spheres.data() */
-  /*   ); */
+  std::vector<Sphere> spheres;
+  spheres.push_back(sphere({{0, 0, -1}}, 0.5f));
+  spheres.push_back(sphere({{0, -100.5, -1}}, 100));
+  
+  cl::Buffer spheresBuffer = cl::Buffer(
+      context, 
+      CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+      spheres.size() * sizeof(Sphere), 
+      spheres.data()
+    );
 
   kernel.setArg(0, image.width);
   kernel.setArg(1, image.height);
   kernel.setArg(2, sizeof(cl_mem), &outputImage);
-  /* kernel.setArg(3, clObjects); */
-  /* kernel.setArg(4, spheres.size()); */
-
-  /* kernel.setArg(3, clObjects); */
-  /* kernel.setArg(4, sceneObjects.size()); */
+  kernel.setArg(3, spheresBuffer);
+  kernel.setArg(4, spheres.size());
 
   cl::CommandQueue queue(context, devices[0], 0, &err);
   clErr(err);
