@@ -1,13 +1,36 @@
+#include "sphere.h"
+#include "ray.h"
+
+float3 ray_color(Ray r) {
+	float3 unit_direction = normalize(r.d);
+	float a = 0.5 * (unit_direction.y + 1.0);
+
+	return (1-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0);
+}
+
 __kernel void render_kernel(
 		const int width,
 		const int height,
 		__write_only image2d_t output
 ) {
+	const float aspect_ratio = (float)width / height;
+	const float viewport_height = 2.0;
+	const float viewport_width = aspect_ratio * viewport_height;
+	const float focal_length = 1.0;
+
+	float3 origin = (float3)(0, 0, 0);
+	float3 horizontal = (float3)(viewport_width, 0, 0);
+	float3 vertical = (float3)(0, viewport_height, 0);
+	float3 lower_left_corner = origin - horizontal/2 - vertical/2 - (float3)(0, 0, focal_length);
+
 	float2 pos = {get_global_id(0), get_global_id(1)};
 
-	float u = (float)(pos.x) / (float)(width);
-	float v = (float)(pos.y) / (float)(height);
-	float3 final_color = (float3)(0.0f, u, v);
+	float u = (float)(pos.x) / (float)(width-1);
+	float v = (float)(pos.y) / (float)(height-1);
+
+	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
+
+	float3 final_color = ray_color(r);
 
 	write_imagef(output, (int2)(pos.x,pos.y), (float4)(final_color, 1.0f));
 }

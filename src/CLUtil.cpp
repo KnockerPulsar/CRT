@@ -1,7 +1,9 @@
 #include "CLUtil.h"
 #include <CL/cl.h>
+#include <cmath>
 #include <optional>
 #include <ostream>
+#include <sstream>
 
 cl::Context setupCL() {
   cl_int                    err;
@@ -43,7 +45,25 @@ auto loadKernel(std::string path) -> std::optional<std::string> {
   return std::make_optional(kernelSource);
 }
 
-auto buildProgram(std::string kernelFile, cl::Context &context, std::vector<cl::Device> devices) -> std::optional<cl::Program> {
+auto build_cl_compile_flags(const std::vector<std::string>& includes) -> std::string {
+  std::stringstream s;
+
+  s << "-DOPENCL ";
+
+  for (const auto& include : includes) {
+    s << "-I " <<  include << " ";
+  }
+
+  return s.str();
+}
+
+auto buildProgram(
+    std::string kernelFile,
+    cl::Context &context,
+    std::vector<cl::Device> devices,
+    const std::vector<std::string>& includes
+) -> std::optional<cl::Program> 
+{
   std::optional<std::string> kernelSource = loadKernel(kernelFile);
 
   if(!kernelSource.has_value()) return std::nullopt;
@@ -51,7 +71,9 @@ auto buildProgram(std::string kernelFile, cl::Context &context, std::vector<cl::
   cl::Program::Sources source{kernelSource.value()};
   cl::Program          program(context, source);
 
-  int err = program.build(devices, "-DOPENCL -I src/common -I src");
+  std::string flags = build_cl_compile_flags(includes);
+
+  int err = program.build(devices, flags.c_str());
 
   if (err == CL_BUILD_PROGRAM_FAILURE || err == CL_INVALID_PROGRAM) {
     for (const cl::Device &dev : devices) {
@@ -70,3 +92,74 @@ auto buildProgram(std::string kernelFile, cl::Context &context, std::vector<cl::
 
   return std::make_optional(program);
 }
+
+float sqrt(float a) {
+  return std::sqrt(a);
+}
+
+float length(float3 a) {
+  float dx = a.s[0];
+  float dy = a.s[1];
+  float dz = a.s[2];
+
+  return sqrt(dx*dx + dy*dy + dz*dz);
+}
+
+float dot(float3 a, float3 b) {
+  return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2];
+}
+
+float3 operator+(float3 a, float3 b) { 
+  float3 c;
+
+  c.s[0] = a.s[0] + b.s[0];  
+  c.s[1] = a.s[1] + b.s[1];  
+  c.s[2] = a.s[2] + b.s[2];  
+  c.s[3] = 0;
+
+  return c;
+}
+
+float3 operator-(float3 a, float3 b) { 
+  float3 c;
+
+  c.s[0] = a.s[0] - b.s[0];  
+  c.s[1] = a.s[1] - b.s[1];  
+  c.s[2] = a.s[2] - b.s[2];  
+  c.s[3] = 0;
+
+  return c;
+}
+
+float3 operator*(float3 a, float t) {
+  float3 c;
+
+  c.s[0] = a.s[0] * t;  
+  c.s[1] = a.s[1] * t;  
+  c.s[2] = a.s[2] * t;  
+  c.s[3] = 0;
+
+  return c;
+}
+
+float3 operator/(float3 a, float t) {
+  float3 c;
+
+  c.s[0] = a.s[0] / t;  
+  c.s[1] = a.s[1] / t;  
+  c.s[2] = a.s[2] / t;  
+  c.s[3] = 0;
+
+  return c;
+}
+
+float3 operator-(float3 a) {
+  float3 b;
+  b.s[0] = -a.s[0];
+  b.s[1] = -a.s[1];
+  b.s[2] = -a.s[2];
+  b.s[3] = 0;
+
+  return b;
+}
+

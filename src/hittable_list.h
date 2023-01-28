@@ -27,7 +27,7 @@ struct HittableList {
 		bool hit_anything = false;
 
 		for (const auto& sphere: spheres) {
-			if(sphere->hit(r, Interval(ray_t.min, closest_so_far), temp_rec)) {
+			if(sphere->hit(r, interval(ray_t.min, closest_so_far), temp_rec)) {
 				closest_so_far = temp_rec.t;
 				rec = temp_rec;
 				hit_anything = true;

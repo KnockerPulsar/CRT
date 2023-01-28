@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include "vec3.h"
 #include "common.h"
+#include "CLUtil.h"
 
 #define RGB8_STRIDE 3
 #define RGBA8_STRIDE 4
@@ -66,8 +66,8 @@ class PPMImage {
 			write_pixel_rgb_u8(x, y, red, green, blue, samples_per_pixel);
 		}
 		
-		void write_pixel_rgb_vec3(int x, int y, Vec3 color, int samples_per_pixel) {
-			write_pixel_rgb_f32(x, y, color.x, color.y, color.z, samples_per_pixel);
+		void write_pixel_rgb_vec3(int x, int y, float3 color, int samples_per_pixel) {
+			write_pixel_rgb_f32(x, y, color.s[0], color.s[1], color.s[2], samples_per_pixel);
 		}
 };
 

@@ -1,23 +1,27 @@
 #pragma once 
+#include "cl_def.cl"
 
-#include "crt.h"
-struct Interval {
+typedef struct {
 	float min, max;
-	
-	Interval(): min(+infinity), max(-infinity) {}
-	Interval(float min, float max): min(min), max(max) {}
+} Interval;
 
-	bool contains(float x) { return min <= x && x <= max; }
+Interval interval_empty() { 
+	return (Interval){+infinity, -infinity};
+}
 
-	float clamp(float x) {
-		if (x < min) return min;
-		if (x > max) return max;
+Interval interval_universe() { 
+	return (Interval){-infinity, +infinity};
+}
 
-		return x;
-	}
+Interval interval(float min, float max) {
+	return (Interval){min, max};
+}
 
-	const static Interval empty, universe;
-};
+bool interval_contains(const Interval* i, float x) { return i->min <= x && x <= i->max; }
 
-const static Interval empty		(+infinity, -infinity);
-const static Interval universe(-infinity, +infinity);
+float interval_clamp(const Interval* i, float x) {
+	if (x < i->min) return i->min;
+	if (x > i->max) return i->max;
+
+	return x;
+}

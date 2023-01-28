@@ -1,10 +1,15 @@
 #pragma once
-#include "vec3.h"
+#include "CLUtil.h"
 
-struct Ray {
-	Vec3 o, d;
+typedef struct { float3 o, d; } Ray;
 
-	Ray(Vec3 o, Vec3 d): o(o), d(d) {}
-	Vec3 at(float t) const { return o + d * t; }
-};
+Ray ray(float3 o, float3 d) {
+	return (Ray){ o , d };
+}
+
+float3 ray_at(const Ray* r, float t) { 
+	return r->o + r->d * t;
+}
+
+
 
