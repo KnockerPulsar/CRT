@@ -2,6 +2,15 @@
 #include "ray.h"
 
 float3 ray_color(Ray r) {
+	Sphere s = sphere((float3)(0, 0, -1), 0.5);
+
+	float t = sphere_hit(&s, &r);
+	if(t > 0) {
+		float3 N = normalize(ray_at(&r, t) - (float3)(0, 0, -1));
+
+		return 0.5f * (float3)(N.x + 1, N.y + 1, N.z + 1);
+	}
+
 	float3 unit_direction = normalize(r.d);
 	float a = 0.5 * (unit_direction.y + 1.0);
 
