@@ -1,66 +1,84 @@
 #include "CLUtil.h"
 
 #include <CL/cl.h>
+#include <CL/cl_ext.h>
+#include <CL/cl_platform.h>
+#include <CL/opencl.hpp>
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
+#include <iterator>
 #include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
-using std::string, std::cout, std::vector, std::cerr, std::endl, std::optional;
+using std::string, std::cout, std::vector, std::cerr, std::endl;
 
-cl::Context setupCL() {
-  cl_int                    err;
+template<typename T, typename U>
+T getClInfo(U& platformOrDevice, cl_platform_info infoToGet) {
+  T info;
+  platformOrDevice.getInfo(infoToGet, &info);
 
-  vector<cl::Platform> platformList;
-  cl::Platform::get(&platformList);
+  return info;
+}
 
-  clErr(!platformList.empty() ? CL_SUCCESS : -1);
+auto computeRubbishMips(cl::Device& device) {
+    uint cus  = getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS);
+    uint freq = getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY);
 
-  for(int i = 0; i < (int)platformList.size(); i++) {
-    string platformVendor;
-    string platformVersion;
-    string deviceVersion;
-    string clCVersion;
-    string deviceExtensions;
+    return cus * freq;
+}
 
-    platformList[i].getInfo((cl_platform_info)CL_PLATFORM_VENDOR, &platformVendor);
-    platformList[i].getInfo((cl_platform_info)CL_PLATFORM_VERSION, &platformVersion);
-    /* platformList[i].getInfo((cl_platform_info)CL_DEVICE_VERSION, &deviceVersion); */
-    /* platformList[i].getInfo((cl_platform_info)CL_DEVICE_OPENCL_C_VERSION, &clCVersion); */
-    platformList[i].getInfo((cl_platform_info)CL_DEVICE_EXTENSIONS, &deviceExtensions);
-    cout << "Platform number is: " << i << endl;
-    cout << "Platform is by: " << platformVendor << "\n";
-    cout << "Platform version: " << platformVersion << "\n";
-    /* cout << "Device version: " << deviceVersion << "\n"; */
-    /* cout << "OpenCL C version: " << clCVersion << "\n"; */
-    cout << "Device extensions: " << deviceExtensions << "\n";
-  }
+auto getDevices(vector<cl::Platform> platforms) {
+  vector<cl::Device> devices;
+
+  for (auto& platform: platforms) {
+    vector<cl::Device> platformDevices; 
+    platform.getDevices(CL_DEVICE_TYPE_ALL, &platformDevices);
+
+    devices.insert(devices.end(), platformDevices.begin(), platformDevices.end());
+  } 
+
+  return devices;
+}
+
+auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, vector<cl::Device>> {
+  cl_int err;
+
+  vector<cl::Platform> platforms;
+  cl::Platform::get(&platforms);
+
+  vector<cl::Device> devices = getDevices(platforms);
 
   cl_context_properties cprops[3] = {
-    CL_CONTEXT_PLATFORM, (cl_context_properties)(platformList[0])(), 
+    CL_CONTEXT_PLATFORM, 
+    (cl_context_properties)(platforms[1])(), 
     0 // To indicate list end
   };
 
-  cl::Context context(CL_DEVICE_TYPE_GPU, cprops, NULL, NULL, &err);
-  checkErr(err, "Context::Context()");
 
-  return context;
+  cl::Context context(devices[1], cprops, NULL, NULL, &err);
+  cl::CommandQueue queue(context, 0, &err);
+
+  return make_tuple(context, queue, devices);
 }
 
-auto loadKernel(string path) -> optional<string> {
+auto loadKernel(string path) -> string {
   std::ifstream in(path);
   
   if(!in) {
-    return std::nullopt;
+    cerr << "Error loading kernel at : " << path << endl;
+    std::abort();
   }
 
   string kernelSource = string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-  return make_optional(kernelSource);
+  return kernelSource;
 }
 
-auto build_cl_compile_flags(const vector<string>& includes) -> string {
+auto buildClCompileFlags(const vector<string>& includes) -> string {
   std::stringstream s;
 
   s << "-DOPENCL ";
@@ -78,25 +96,21 @@ auto buildProgram(
     cl::Context &context,
     vector<cl::Device> devices,
     const vector<string>& includes
-) -> optional<cl::Program> 
+) -> cl::Program 
 {
-  optional<string> kernelSource = loadKernel(kernelFile);
+  string kernelSource = loadKernel(kernelFile);
 
-  if(!kernelSource.has_value()) { 
-    cerr << "Error loading kernel at : " << kernelFile << endl;
-    return std::nullopt;
-  }
-
-  cl::Program::Sources source{kernelSource.value()};
+  cl::Program::Sources source{kernelSource};
   cl::Program          program(context, source);
 
-  string flags = build_cl_compile_flags(includes);
+  string flags = buildClCompileFlags(includes);
 
   int err = program.build(devices, flags.c_str());
 
   if (err == CL_BUILD_PROGRAM_FAILURE || err == CL_INVALID_PROGRAM) {
-    for (const cl::Device &dev : devices) {
+    cerr << "Error building program for kernel: " << kernelFile << std::endl;
 
+    for (const cl::Device &dev : devices) {
       // Check the build status
       cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(dev);
       if (status != CL_BUILD_ERROR)
@@ -109,11 +123,42 @@ auto buildProgram(
     }
   }
 
-  return std::make_optional(program);
+  return program;
+}
+
+
+auto kernelFromFile(
+    std::string kernelPath,
+    cl::Context& context,
+    std::vector<cl::Device> devices,
+    std::vector<std::string> includes
+) -> cl::Kernel
+{
+  auto test_program = buildProgram(kernelPath, context, devices, includes);
+  
+
+  std::filesystem::path filepath(kernelPath);
+  
+  cl_int err;
+  cl::Kernel kernel(test_program, filepath.stem().c_str(), &err);
+  auto dev = devices[1];
+  string name     = dev.getInfo<CL_DEVICE_NAME>();
+  string buildlog = test_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
+  cerr << "Build log for " << name << ":" << endl << buildlog << endl;
+  cerr << "Kernel: " << kernelPath << '\n';
+  clErr(err);
+
+  if(err != CL_SUCCESS) {
+    clErr(err);
+    std::cerr << "Failed to load kernel at: " << kernelPath << std::endl;
+    std::abort();
+  }
+
+  return kernel;
 }
 
 float sqrt(float a) {
-  return sqrt(a);
+  return std::sqrt(a);
 }
 
 float length(float3 a) {

@@ -1,5 +1,3 @@
-#pragma OPENCL EXTENSION cl_khr_srgb_image_writes : enable
-
 #include "sphere.h"
 #include "hit_record.h"
 #include "ray.h"
@@ -42,7 +40,7 @@ float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count) {
 	return (1-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0);
 }
 
-kernel void render_kernel(
+kernel void test_kernel(
 	read_write image2d_t input,
 	constant Sphere* spheres, 
 	int sphere_count,
@@ -64,9 +62,9 @@ kernel void render_kernel(
 	float2 pos = {get_global_id(0), get_global_id(1)};
 	
 	uint2 *seed1 = &seeds[get_global_id(0) + width * get_global_id(1)];
-	
-	float du = random_float(seed1);
-	float dv = random_float(seed1);
+
+	float du = (random_float(seed1) - 0.5) * 2;
+	float dv = (random_float(seed1) - 0.5) * 2;
 	
 	float u = (float)(pos.x+du) / (float)(width-1);
 	float v = (float)(pos.y+dv) / (float)(height-1);
@@ -77,4 +75,4 @@ kernel void render_kernel(
 	float4 final_color = prev_color + (float4)(ray_color(r, spheres, sphere_count), 1.0);
 	
 	write_imagef(input, (int2)(pos.x,pos.y), final_color);
-}
+} 
