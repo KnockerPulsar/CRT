@@ -4,14 +4,16 @@
 #include "interval.h"
 #include "ray.h"
 #include "CLUtil.h"
+#include "hit_record.h"
 
 typedef struct {
 	float3 center;
 	float radius;
+	MaterialIdentifier mat_id;
 } Sphere;
 
 Sphere sphere(float3 c, float r) {
-	return (Sphere) {c, r};
+	return (Sphere) {c, r, {0, 0}};
 }
 
 bool sphere_hit(constant Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
@@ -34,11 +36,13 @@ bool sphere_hit(constant Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec
 		}
 	}
 
+	float3 p = ray_at(r, root);
+	float3 outward_normal = (p - s->center) / s->radius;
+
 	rec->t = root;
-	rec->p = ray_at(r, root);
-	
-	float3 outward_normal = (rec->p - s->center) / s->radius;
 	set_face_normal(rec, r, outward_normal);
+	rec->materialId = s->mat_id;
+	rec->incident_ray = *r;
 
 	return true;
 }

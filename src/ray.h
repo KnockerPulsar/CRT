@@ -1,10 +1,10 @@
 #pragma once
 #include "CLUtil.h"
 
-typedef struct { float3 o, d; } Ray;
+typedef struct { float3 o, d; int2 pixel; } Ray;
 
-Ray ray(float3 o, float3 d) {
-	return (Ray){ o , d };
+Ray ray(float3 o, float3 d, int2 p) {
+	return (Ray){ o , d, p};
 }
 
 float3 ray_at(const Ray* r, float t) { 
