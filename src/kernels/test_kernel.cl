@@ -42,7 +42,7 @@ float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count, int max_dept
 	for(int i = 0; i < max_depth - 1; i++) {
 		HitRecord rec;
 		if(closest_hit(rays[i], spheres, sphere_count, interval(0.001f, infinity), &rec)) {
-			float3 target = rec.p + rec.normal + random_in_unit_sphere(seed);
+			float3 target = rec.p + rec.normal + random_unit_vector(seed);
 			rays[i+1] = ray(rec.p, target - rec.p);
 	
 			attenuation *= 0.5f;

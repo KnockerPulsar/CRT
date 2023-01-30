@@ -35,7 +35,7 @@ int main(void) {
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int numSamples = 20;
+  int numSamples = 100;
 	
   auto [context, queue, devices] = setupCL();
 
@@ -82,7 +82,7 @@ int main(void) {
 
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
   for (int i = 0 ; i < numSamples; i++) {
-    /* std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush; */
+    std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush;
     clErr(queue.enqueueNDRangeKernel(kernel, offset, size, cl::NullRange, NULL, &event));
     event.wait();
   }

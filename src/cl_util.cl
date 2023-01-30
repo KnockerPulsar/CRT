@@ -44,3 +44,17 @@ float3 random_in_unit_sphere(uint2* seed) {
 		return p;
 	}
 }
+
+float3 random_unit_vector(uint2* seed) {
+	return normalize(random_in_unit_sphere(seed));
+}
+
+float3 random_in_hemisphere(float3 normal, uint2* seed) {
+	float3 in_unit_sphere = random_in_unit_sphere(seed);
+
+	if(dot(normal, in_unit_sphere) > 0) {
+		return in_unit_sphere;
+	} else {
+		return -in_unit_sphere;
+	}
+}
