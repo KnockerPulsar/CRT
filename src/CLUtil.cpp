@@ -12,6 +12,7 @@
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <tuple>
 #include <vector>
 #include <filesystem>
 
@@ -46,24 +47,45 @@ auto getDevices(vector<cl::Platform> platforms) {
 }
 
 auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, vector<cl::Device>> {
+  // So for some reason,
+  // Fetching all devices from all platforms
+  // THEN creating the context works fine on my UHD 630 
+  // but nukes itself on my GTX 1660Ti.
+  // So to get all devices, I'd have to create multiple contextes...
+
+
   cl_int err;
 
   vector<cl::Platform> platforms;
-  cl::Platform::get(&platforms);
+  clErr(cl::Platform::get(&platforms));
 
-  vector<cl::Device> devices = getDevices(platforms);
-
-  cl_context_properties cprops[3] = {
-    CL_CONTEXT_PLATFORM, 
-    (cl_context_properties)(platforms[1])(), 
+  cl_context_properties cprops[] = {
+    CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[1])(), 
     0 // To indicate list end
   };
+  auto context = cl::Context(CL_DEVICE_TYPE_GPU, cprops, NULL, NULL, &err);
 
+  vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
+  vector<uint> rubbishMips;
 
-  cl::Context context(devices[1], cprops, NULL, NULL, &err);
-  cl::CommandQueue queue(context, 0, &err);
+  clErr(err);
 
-  return make_tuple(context, queue, devices);
+  cout << "\nUsing device: \n"; 
+  for (auto& device : devices) {
+    uint mips = computeRubbishMips(device);
+    cout << "\tDevice name:" << getClInfo<string>(device, CL_DEVICE_NAME) << '\n';
+    cout << "\tDevice cus: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS) << '\n';
+    cout << "\tDevice max frequency: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n';
+    cout << "\tDevice RubbishMIPs: " << mips << '\n';
+    cout << '\n';
+
+    rubbishMips.push_back(mips);
+  }
+  cout << "Rubbish MIPs = CUs * max frequency\n\n";
+
+  cl::CommandQueue queue(context, devices[0], 0, &err);
+
+  return std::make_tuple(context, queue, devices);
 }
 
 auto loadKernel(string path) -> string {
@@ -141,11 +163,6 @@ auto kernelFromFile(
   
   cl_int err;
   cl::Kernel kernel(test_program, filepath.stem().c_str(), &err);
-  auto dev = devices[1];
-  string name     = dev.getInfo<CL_DEVICE_NAME>();
-  string buildlog = test_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
-  cerr << "Build log for " << name << ":" << endl << buildlog << endl;
-  cerr << "Kernel: " << kernelPath << '\n';
   clErr(err);
 
   if(err != CL_SUCCESS) {

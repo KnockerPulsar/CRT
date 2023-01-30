@@ -4,6 +4,8 @@
 #include "interval.h"
 #include "cl_util.cl"
 
+#define MAX_DEPTH 64
+// Seems like we don't need gamma correction?
 
 bool closest_hit(
 	Ray r,
@@ -27,17 +29,33 @@ bool closest_hit(
 	return hit_anything;
 }
 
-float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count) {
+float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count, int max_depth, uint2* seed) {
 
-	HitRecord rec;
-	if(closest_hit(r, spheres, sphere_count, interval(0, infinity), &rec)) {
-		return 0.5f * (rec.normal + (float3)(1, 1, 1));
+	max_depth = min(max_depth, MAX_DEPTH);
+
+	Ray rays[MAX_DEPTH];
+	float3 color = (float3)(1);
+	float attenuation = 1.0f;
+
+	rays[0] = r;
+
+	for(int i = 0; i < max_depth - 1; i++) {
+		HitRecord rec;
+		if(closest_hit(rays[i], spheres, sphere_count, interval(0.001f, infinity), &rec)) {
+			float3 target = rec.p + rec.normal + random_in_unit_sphere(seed);
+			rays[i+1] = ray(rec.p, target - rec.p);
+	
+			attenuation *= 0.5f;
+		} else {
+			float3 unit_direction = normalize(r.d);
+			float a = 0.5 * (unit_direction.y + 1.0);
+	
+			color = ((1.0f-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0));
+			break;
+		}
 	}
-
-	float3 unit_direction = normalize(r.d);
-	float a = 0.5 * (unit_direction.y + 1.0);
-
-	return (1-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0);
+	
+	return color * attenuation;
 }
 
 kernel void test_kernel(
@@ -60,11 +78,12 @@ kernel void test_kernel(
 	float3 lower_left_corner = origin - horizontal/2 - vertical/2 - (float3)(0, 0, focal_length);
 	
 	float2 pos = {get_global_id(0), get_global_id(1)};
+	int thread_index = get_global_id(0) + width * get_global_id(1);
 	
-	uint2 *seed1 = &seeds[get_global_id(0) + width * get_global_id(1)];
+	private uint2 seed = seeds[thread_index];
 
-	float du = (random_float(seed1) - 0.5) * 2;
-	float dv = (random_float(seed1) - 0.5) * 2;
+	float du = (random_float(&seed) - 0.5) * 2;
+	float dv = (random_float(&seed) - 0.5) * 2;
 	
 	float u = (float)(pos.x+du) / (float)(width-1);
 	float v = (float)(pos.y+dv) / (float)(height-1);
@@ -72,7 +91,11 @@ kernel void test_kernel(
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float4 final_color = prev_color + (float4)(ray_color(r, spheres, sphere_count), 1.0);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, 50, &seed);
+
+	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	
 	write_imagef(input, (int2)(pos.x,pos.y), final_color);
+
+	seeds[thread_index] = seed;
 } 

@@ -24,3 +24,23 @@ float random_float_ranged(uint2* seed1, float min, float max) {
 	return min + (max-min) * random_float(seed1);
 }
 
+float3 random_float3(uint2* seed) {
+	return (float3)(random_float(seed), random_float(seed), random_float(seed));
+}
+
+float3 random_float3_ranged(uint2* seed, float min, float max) {
+	return (float3)(
+		random_float_ranged(seed, min, max), 
+		random_float_ranged(seed, min, max), 
+		random_float_ranged(seed, min, max)
+	);
+}
+
+float3 random_in_unit_sphere(uint2* seed) {
+	while(true) {
+		float3 p = random_float3_ranged(seed, -1, 1);
+		if(length(p) * length(p) >= 1) continue;
+
+		return p;
+	}
+}

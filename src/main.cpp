@@ -19,15 +19,26 @@
 
 using std::vector, std::string;
 
+/*
+ * for each sample:
+ *    for each bounce:
+ *      list geometry_hits; int counter;
+ *      test_geometry(input_rays, spheres, max_bounces, geometry_hits, counter);
+ *
+ *      for hit in geometry_hits:
+ *        list output_rays;
+ *        scatter(materials, image, output_rays)
+ */
 
 int main(void) {
   cl_int err;
 
-  int imageWidth = 960/4;
-  int imageHeight = 1080/4;
-  int numSamples = 100;
+  int imageWidth = 1920;
+  int imageHeight = 1080;
+  int numSamples = 20;
 	
   auto [context, queue, devices] = setupCL();
+
   cl::Kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, devices);
   
   cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, devices, {"./src"});
@@ -71,7 +82,7 @@ int main(void) {
 
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
   for (int i = 0 ; i < numSamples; i++) {
-    std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush;
+    /* std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush; */
     clErr(queue.enqueueNDRangeKernel(kernel, offset, size, cl::NullRange, NULL, &event));
     event.wait();
   }
@@ -79,7 +90,7 @@ int main(void) {
 
   const std::array<unsigned long, 3> origin = {0, 0, 0};
   const std::array<unsigned long, 3> region = {(size_t)image.width, (size_t)image.height, 1};
-
+  
   
   pixelwise_divide.setArg(0, outputImage);
   pixelwise_divide.setArg(1, (float)numSamples);
@@ -90,7 +101,7 @@ int main(void) {
   queue.enqueueReadImage(outputImage, CL_TRUE, origin, region, 0, 0, new_data);
   image.from_rgb_f32(new_data);
 
-  image.write("output.ppm");
+  image.write("output.ppm", numSamples);
   
 
 	return EXIT_SUCCESS;

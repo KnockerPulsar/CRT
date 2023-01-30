@@ -23,14 +23,14 @@ class PPMImage {
 
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < w; x++) {
-					image.write_pixel_rgb_u8(x, y, 255, 0, 255, 1);
+					image.write_pixel_rgb_u8(x, y, 255, 0, 255);
 				}	
 			}
 
 			return image;
 		}
 
-		void write(const char* path) const {
+		void write(const char* path, int samples_per_pixel) const {
 			FILE* f = fopen(path, "w");
 
 			if(f == NULL) {
@@ -49,6 +49,7 @@ class PPMImage {
 					u8 r = data[index + 0];
 					u8 g = data[index + 1];
 					u8 b = data[index + 2];
+
 					fprintf(f, "%d %d %d\n", r, g, b);
 				}	
 			}
@@ -59,23 +60,19 @@ class PPMImage {
 		}
 
 		// Data should be an RGB8 pixel buffer
-		void write_pixel_rgb_u8(int x, int y, u8 r, u8 g, u8 b, int samples_per_pixel) {
+		void write_pixel_rgb_u8(int x, int y, u8 r, u8 g, u8 b) {
 			int index = (y * width + x) * RGBA8_STRIDE;
 			data[index + 0] = r;
 			data[index + 1] = g;
 			data[index + 2] = b;
 		}
 		
-		void write_pixel_rgb_f32(int x, int y, float r, float g, float b, int samples_per_pixel) {
-			u8 red 		= (u8) (clamp(r / (float)samples_per_pixel, 0.0f, 1.0f) * 255);
-			u8 green 	= (u8) (clamp(g / (float)samples_per_pixel, 0.0f, 1.0f) * 255);
-			u8 blue 	= (u8) (clamp(b / (float)samples_per_pixel, 0.0f, 1.0f) * 255);
+		void write_pixel_rgb_f32(int x, int y, float r, float g, float b) {
+			u8 red 		= (u8) (clamp(r, 0.0f, 1.0f) * 255);
+			u8 green 	= (u8) (clamp(g, 0.0f, 1.0f) * 255);
+			u8 blue 	= (u8) (clamp(b, 0.0f, 1.0f) * 255);
 		
-			write_pixel_rgb_u8(x, y, red, green, blue, samples_per_pixel);
-		}
-		
-		void write_pixel_rgb_vec3(int x, int y, float3 color, int samples_per_pixel) {
-			write_pixel_rgb_f32(x, y, color.s[0], color.s[1], color.s[2], samples_per_pixel);
+			write_pixel_rgb_u8(x, y, red, green, blue);
 		}
 
 		void from_rgb_f32(float* new_data) {
@@ -86,7 +83,7 @@ class PPMImage {
 					float g = new_data[index + 1];
 					float b = new_data[index + 2];
 
-					write_pixel_rgb_f32(x, y, r, g, b, 1);
+					write_pixel_rgb_f32(x, y, r, g, b);
 				}
 			}
 		}
