@@ -13,14 +13,12 @@
 #define float cl_float
 #define uint  cl_uint
 #define uint2 cl_uint2
-#define int2 cl_int2
 #define constant const
 
 #include <iostream>
 #include <fstream>
 #include <optional>
 #include <cmath>
-#include <signal.h>
 
 #include "cl_errors.h"
 
@@ -33,7 +31,7 @@
   inline void checkErr(cl_int err, const char *name) {
     if (err != CL_SUCCESS) {
       std::cerr << "ERROR: " << name << " (" << clErrorString(err) << ") " << std::endl;
-      raise(SIGTRAP);
+      exit(EXIT_FAILURE);
     }
   }
 
