@@ -9,7 +9,7 @@
 
 bool closest_hit(
 	Ray r,
-	constant Sphere* spheres,
+	Sphere* spheres,
 	int sphere_count,
 	Interval ray_t,
 	HitRecord* rec
@@ -29,21 +29,18 @@ bool closest_hit(
 	return hit_anything;
 }
 
-float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count, int max_depth, uint2* seed) {
+float3 ray_color(Ray r, Sphere* spheres, int sphere_count, int max_depth, uint2* seed) {
 
 	max_depth = min(max_depth, MAX_DEPTH);
 
-	Ray rays[MAX_DEPTH];
 	float3 color = (float3)(1);
 	float attenuation = 1.0f;
 
-	rays[0] = r;
-
 	for(int i = 0; i < max_depth - 1; i++) {
 		HitRecord rec;
-		if(closest_hit(rays[i], spheres, sphere_count, interval(0.001f, infinity), &rec)) {
+		if(closest_hit(r, spheres, sphere_count, interval(0.001f, infinity), &rec)) {
 			float3 target = rec.p + rec.normal + random_unit_vector(seed);
-			rays[i+1] = ray(rec.p, target - rec.p);
+			r = ray(rec.p, target - rec.p);
 	
 			attenuation *= 0.5f;
 		} else {
@@ -60,9 +57,10 @@ float3 ray_color(Ray r, constant Sphere* spheres, int sphere_count, int max_dept
 
 kernel void test_kernel(
 	read_write image2d_t input,
-	constant Sphere* spheres, 
+	global Sphere* spheres, 
 	int sphere_count,
-	global uint2* seeds
+	global uint2* seeds,
+	int max_depth
 ) {
 	const uint width = get_image_width(input);
 	const uint height = get_image_height(input);
@@ -91,7 +89,7 @@ kernel void test_kernel(
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float3 pixel_color = ray_color(r, spheres, sphere_count, 50, &seed);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed);
 
 	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	

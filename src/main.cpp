@@ -36,6 +36,7 @@ int main(void) {
   int imageWidth = 1920;
   int imageHeight = 1080;
   int numSamples = 100;
+  int maxDepth = 50;
 	
   auto [context, queue, devices] = setupCL();
 
@@ -49,7 +50,7 @@ int main(void) {
   clErr(err);
   
 
-  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE); 
+  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 10 * 10 * 10); 
   spheres
     .push_back({sphere({{0, 0, -1}}, 0.5f), sphere({{0, -100.5, -1}}, 100)})
     .uploadToDevice();
@@ -74,6 +75,7 @@ int main(void) {
   clErr(kernel.setArg(1, spheres.devBuffer()));
   clErr(kernel.setArg(2, spheres.count()));
   clErr(kernel.setArg(3, seeds.devBuffer()));
+  clErr(kernel.setArg(4, maxDepth));
   
   cl::NDRange offset(0, 0, 0);
   cl::NDRange size((std::size_t)image.width, (std::size_t)image.height, 1);
