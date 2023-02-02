@@ -1,4 +1,5 @@
 #include "CLUtil.h"
+#include "utils.h"
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
@@ -7,14 +8,17 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <iomanip>
 #include <iterator>
 #include <optional>
 #include <ostream>
 #include <sstream>
 #include <string>
+#include <sys/types.h>
 #include <tuple>
 #include <vector>
 #include <filesystem>
+#include <assert.h>
 
 using std::string, std::cout, std::vector, std::cerr, std::endl;
 
@@ -33,20 +37,45 @@ auto computeRubbishMips(cl::Device& device) {
     return cus * freq;
 }
 
-auto getDevices(vector<cl::Platform> platforms) {
-  vector<cl::Device> devices;
+auto getDevices(cl::Platform& platform) {
+  vector<cl::Device> platformDevices; 
+  clErr(platform.getDevices(CL_DEVICE_TYPE_ALL, &platformDevices));
 
-  for (auto& platform: platforms) {
-    vector<cl::Device> platformDevices; 
-    platform.getDevices(CL_DEVICE_TYPE_ALL, &platformDevices);
-
-    devices.insert(devices.end(), platformDevices.begin(), platformDevices.end());
-  } 
-
-  return devices;
+  return platformDevices;
 }
 
-auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, vector<cl::Device>> {
+auto printSize(const vector<uint>&& sizes) {
+  std::stringstream ss;
+  ss << "[ ";
+  for (auto& item : sizes) {
+    ss << item << ", ";
+  }
+  ss << " ]";
+  return ss.str();
+}
+
+
+auto printDevice(cl::Device& device) {
+    uint mips = computeRubbishMips(device);
+    cout << "\tDevice name: " << getClInfo<string>(device, CL_DEVICE_NAME) << '\n';
+    cout << "\tDevice CUs: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS) << '\n';
+    cout << "\tDevice max frequency: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n';
+    cout << "\tDevice max workgroup size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_GROUP_SIZE)) << '\n';
+    cout << "\tDevice max workitem size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_ITEM_SIZES)) << '\n';
+    cout << "\tDevice RubbishMIPs: " << mips << "\n\n";
+}
+
+// https://stackoverflow.com/a/10031155
+auto replaceAll(const string& source, string toBeReplaced, string replacement) {
+  int pos;
+  string sourceCopy = source;
+  while ((size_t)(pos = sourceCopy.find(toBeReplaced)) != std::string::npos)
+    sourceCopy.replace(pos, toBeReplaced.length(), replacement);
+
+  return sourceCopy;
+}
+
+auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, cl::Device> {
   // So for some reason,
   // Fetching all devices from all platforms
   // THEN creating the context works fine on my UHD 630 
@@ -59,40 +88,47 @@ auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, vector<cl::Device>> 
   vector<cl::Platform> platforms;
   clErr(cl::Platform::get(&platforms));
 
-  cl_context_properties cprops[] = {
-    CL_CONTEXT_PLATFORM, (cl_context_properties)(platforms[1])(), 
-    0 // To indicate list end
-  };
-  auto context = cl::Context(CL_DEVICE_TYPE_GPU, cprops, NULL, NULL, &err);
+  uint maxRubbishMips = 0;
+  cl::Device maxRubbishMipsDevice;
+  for(auto& platform : platforms) {
+    cout << "\nPlatform name: " << getClInfo<string>(platform, CL_PLATFORM_NAME) << "\n";
 
-  vector<cl::Device> devices = context.getInfo<CL_CONTEXT_DEVICES>();
-  vector<uint> rubbishMips;
+    /* string ext = getClInfo<string>(platform, CL_PLATFORM_EXTENSIONS);  */
+    /* cout << "\nPlatform extensions: " << ext << "\n"; */
 
+    vector<cl::Device> devices = getDevices(platform);
+
+    for (int i = 0; i < (int)devices.size(); i++) {
+      auto currDevice = devices[i];
+
+      printDevice(currDevice);
+      uint currMips = computeRubbishMips(currDevice);
+
+      if(currMips > maxRubbishMips) {
+        maxRubbishMips = currMips;
+        maxRubbishMipsDevice = currDevice;
+      }
+    }
+  }  
+  cout << "Rubbish MIPs = CUs * max frequency (not necessarily accurate)\n\n";
+
+
+  auto device = maxRubbishMipsDevice;
+  string deviceName = device.getInfo<CL_DEVICE_NAME>();
+  cout << fmt("Using device: \"%s\"\n", deviceName.c_str());
+
+  auto context = cl::Context(device);
+  cl::CommandQueue queue(context, device, 0, &err);
   clErr(err);
 
-  cout << "\nUsing device: \n"; 
-  for (auto& device : devices) {
-    uint mips = computeRubbishMips(device);
-    cout << "\tDevice name:" << getClInfo<string>(device, CL_DEVICE_NAME) << '\n';
-    cout << "\tDevice cus: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS) << '\n';
-    cout << "\tDevice max frequency: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n';
-    cout << "\tDevice RubbishMIPs: " << mips << '\n';
-    cout << '\n';
-
-    rubbishMips.push_back(mips);
-  }
-  cout << "Rubbish MIPs = CUs * max frequency\n\n";
-
-  cl::CommandQueue queue(context, devices[0], 0, &err);
-
-  return std::make_tuple(context, queue, devices);
+  return std::make_tuple(context, queue, device);
 }
 
 auto loadKernel(string path) -> string {
   std::ifstream in(path);
   
   if(!in) {
-    cerr << "Error loading kernel at : " << path << endl;
+    cerr << fmt("Error loading kernel at: %s\n", path.c_str());
     std::abort();
   }
 
@@ -103,11 +139,10 @@ auto loadKernel(string path) -> string {
 auto buildClCompileFlags(const vector<string>& includes) -> string {
   std::stringstream s;
 
-  s << "-DOPENCL ";
-  s << "-cl-std=CL2.0 ";
+  s << "-DOPENCL -cl-std=CL2.0 ";
 
   for (const auto& include : includes) {
-    s << "-I " <<  include << " ";
+    s << fmt("-I %s ", include.c_str());
   }
 
   return s.str();
@@ -116,7 +151,7 @@ auto buildClCompileFlags(const vector<string>& includes) -> string {
 auto buildProgram(
     string kernelFile,
     cl::Context &context,
-    vector<cl::Device> devices,
+    cl::Device& device,
     const vector<string>& includes
 ) -> cl::Program 
 {
@@ -127,22 +162,17 @@ auto buildProgram(
 
   string flags = buildClCompileFlags(includes);
 
-  int err = program.build(devices, flags.c_str());
+  int err = program.build(device, flags.c_str());
 
   if (err == CL_BUILD_PROGRAM_FAILURE || err == CL_INVALID_PROGRAM) {
-    cerr << "Error building program for kernel: " << kernelFile << std::endl;
+    cerr << fmt("Error building program for kernel: \"%s\"\n", kernelFile.c_str());
 
-    for (const cl::Device &dev : devices) {
-      // Check the build status
-      cl_build_status status = program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(dev);
-      if (status != CL_BUILD_ERROR)
-        continue;
+    // Get the build log
+    string name     = device.getInfo<CL_DEVICE_NAME>();
+    string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(device);
 
-      // Get the build log
-      string name     = dev.getInfo<CL_DEVICE_NAME>();
-      string buildlog = program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(dev);
-      cerr << "Build log for " << name << ":" << endl << buildlog << endl;
-    }
+    cerr << fmt("Build log for: %s\n", name.c_str());
+    cerr << buildlog;
   }
 
   return program;
@@ -152,11 +182,11 @@ auto buildProgram(
 auto kernelFromFile(
     std::string kernelPath,
     cl::Context& context,
-    std::vector<cl::Device> devices,
+    cl::Device& device,
     std::vector<std::string> includes
 ) -> cl::Kernel
 {
-  auto test_program = buildProgram(kernelPath, context, devices, includes);
+  auto test_program = buildProgram(kernelPath, context, device, includes);
   
 
   std::filesystem::path filepath(kernelPath);
@@ -167,7 +197,7 @@ auto kernelFromFile(
 
   if(err != CL_SUCCESS) {
     clErr(err);
-    std::cerr << "Failed to load kernel at: " << kernelPath << std::endl;
+    std::cerr << fmt("Failed to loa kernel at path: %s\n", kernelPath.c_str());
     std::abort();
   }
 

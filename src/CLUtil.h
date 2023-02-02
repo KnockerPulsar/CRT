@@ -22,11 +22,11 @@
 
 #include "cl_errors.h"
 
-  auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, std::vector<cl::Device>> ; 
+  auto setupCL() -> std::tuple<cl::Context, cl::CommandQueue, cl::Device>; 
   auto loadKernel(std::string path) -> std::string;
   auto buildClCompileFlags(const std::string& includes) -> std::string;
-  auto buildProgram(std::string kernelFile, cl::Context &context, std::vector<cl::Device> devices, const std::vector<std::string>& includes) -> cl::Program;
-  auto kernelFromFile( std::string kernelPath, cl::Context& context, std::vector<cl::Device> devices, std::vector<std::string> includes = std::vector<std::string>()) -> cl::Kernel;
+  auto buildProgram(std::string kernelFile, cl::Context &context, cl::Device& devices, const std::vector<std::string>& includes) -> cl::Program;
+  auto kernelFromFile( std::string kernelPath, cl::Context& context, cl::Device& devices, std::vector<std::string> includes = std::vector<std::string>()) -> cl::Kernel;
 
   inline void checkErr(cl_int err, const char *name) {
     if (err != CL_SUCCESS) {

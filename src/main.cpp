@@ -12,12 +12,19 @@
 #include <string>
 #include <iomanip>
 #include <vector>
+#include <ranges>
+#include <chrono>
 
 #include "sphere.h"
 #include "ppm.h"
 #include "cl_buffer.h"
+#include "utils.h"
 
 using std::vector, std::string;
+using std::chrono::high_resolution_clock;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::milliseconds;
 
 /*
  * for each sample:
@@ -35,14 +42,14 @@ int main(void) {
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int numSamples = 100;
+  int numSamples = 1000;
   int maxDepth = 50;
 	
-  auto [context, queue, devices] = setupCL();
+  auto [context, queue, device] = setupCL();
 
-  cl::Kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, devices);
+  cl::Kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, device);
   
-  cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, devices, {"./src"});
+  cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
   cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
   auto image  = PPMImage::magenta(imageWidth, imageHeight);
@@ -70,25 +77,28 @@ int main(void) {
 
   seeds.uploadToDevice();
 
-
   clErr(kernel.setArg(0, outputImage)); // Input image
   clErr(kernel.setArg(1, spheres.devBuffer()));
   clErr(kernel.setArg(2, spheres.count()));
   clErr(kernel.setArg(3, seeds.devBuffer()));
   clErr(kernel.setArg(4, maxDepth));
   
-  cl::NDRange offset(0, 0, 0);
-  cl::NDRange size((std::size_t)image.width, (std::size_t)image.height, 1);
-  
   cl::Event event;
+  cl::NDRange image_size((std::size_t)image.width, (std::size_t)image.height, 1);
+  cl::NDRange zero_offset(0, 0, 0);
 
+  std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, numSamples, maxDepth);
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
+
+  auto start = high_resolution_clock::now();
   for (int i = 0 ; i < numSamples; i++) {
     std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush;
-    clErr(queue.enqueueNDRangeKernel(kernel, offset, size, cl::NullRange, NULL, &event));
+    clErr(queue.enqueueNDRangeKernel(kernel, zero_offset, image_size, cl::NullRange, NULL, &event));
     event.wait();
   }
+  auto end = high_resolution_clock::now();
   std::cout << "\rDone.                            \n";
+  std::cout << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
 
   const std::array<unsigned long, 3> origin = {0, 0, 0};
   const std::array<unsigned long, 3> region = {(size_t)image.width, (size_t)image.height, 1};
@@ -97,7 +107,7 @@ int main(void) {
   pixelwise_divide.setArg(0, outputImage);
   pixelwise_divide.setArg(1, (float)numSamples);
   
-  clErr(queue.enqueueNDRangeKernel(pixelwise_divide, offset, size, cl::NullRange, NULL));
+  clErr(queue.enqueueNDRangeKernel(pixelwise_divide, zero_offset, image_size));
   
   float* new_data = new float[imageWidth * imageHeight * 4];
   queue.enqueueReadImage(outputImage, CL_TRUE, origin, region, 0, 0, new_data);
@@ -105,6 +115,5 @@ int main(void) {
 
   image.write("output.ppm", numSamples);
   
-
 	return EXIT_SUCCESS;
 }
