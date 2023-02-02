@@ -8,10 +8,11 @@
 typedef struct {
 	float3 center;
 	float radius;
+	MaterialIdentifier mat_id;
 } Sphere;
 
-Sphere sphere(float3 c, float r) {
-	return (Sphere) {c, r};
+Sphere sphere(float3 c, float r, MaterialIdentifier mat_id) {
+	return (Sphere) {c, r, mat_id};
 }
 
 bool sphere_hit(Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
@@ -39,6 +40,8 @@ bool sphere_hit(Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
 	
 	float3 outward_normal = (rec->p - s->center) / s->radius;
 	set_face_normal(rec, r, outward_normal);
+
+	rec->mat_id = s->mat_id;
 
 	return true;
 }

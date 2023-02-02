@@ -10,9 +10,12 @@
 #include <CL/opencl.hpp>
 
 #define float3 cl_float3
-#define float cl_float
+#define float  cl_float
+
 #define uint  cl_uint
 #define uint2 cl_uint2
+#define int2  cl_int2
+
 #define constant const
 
 #include <iostream>
@@ -41,10 +44,12 @@
   float length(float3 v);
   float dot(float3 a, float3 b);
   float sqrt(float a);
+  float3 normalize(float3 v);
 
   float3 operator+(float3 a, float3 b);
   float3 operator-(float3 a, float3 b);
   float3 operator*(float3 a, float t);
+  float3 operator*(float t, float3 a);
   float3 operator/(float3 a, float t);
   float3 operator-(float3 a);
 #endif

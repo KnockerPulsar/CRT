@@ -10,6 +10,3 @@ Ray ray(float3 o, float3 d) {
 float3 ray_at(const Ray* r, float t) { 
 	return r->o + r->d * t;
 }
-
-
-

@@ -62,6 +62,7 @@ auto printDevice(cl::Device& device) {
     cout << "\tDevice max frequency: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n';
     cout << "\tDevice max workgroup size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_GROUP_SIZE)) << '\n';
     cout << "\tDevice max workitem size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_ITEM_SIZES)) << '\n';
+    cout << "\tDevice max constant parameters: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_CONSTANT_ARGS)) << '\n';
     cout << "\tDevice RubbishMIPs: " << mips << "\n\n";
 }
 
@@ -220,6 +221,10 @@ float dot(float3 a, float3 b) {
   return a.s[0] * b.s[0] + a.s[1] * b.s[1] + a.s[2] * b.s[2];
 }
 
+float3 normalize(float3 v) {
+  return v / length(v);
+}
+
 float3 operator+(float3 a, float3 b) { 
   float3 c;
 
@@ -252,6 +257,8 @@ float3 operator*(float3 a, float t) {
 
   return c;
 }
+
+float3 operator*(float t, float3 a) { return a * t; }
 
 float3 operator/(float3 a, float t) {
   float3 c;

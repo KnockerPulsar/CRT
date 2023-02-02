@@ -3,6 +3,8 @@
 #include "ray.h"
 #include "interval.h"
 #include "cl_util.cl"
+#include "lambertian.h"
+#include "metal.h"
 
 #define MAX_DEPTH 64
 // Seems like we don't need gamma correction?
@@ -29,30 +31,48 @@ bool closest_hit(
 	return hit_anything;
 }
 
-float3 ray_color(Ray r, Sphere* spheres, int sphere_count, int max_depth, uint2* seed) {
+float3 ray_color(Ray r, Sphere* spheres, int sphere_count, int max_depth, uint2* seed, constant Lambertian* lambertians, constant Metal* metals) {
 
 	max_depth = min(max_depth, MAX_DEPTH);
 
-	float3 color = (float3)(1);
-	float attenuation = 1.0f;
+	float3 attenuation = (float3)(1, 1, 1);
 
 	for(int i = 0; i < max_depth - 1; i++) {
 		HitRecord rec;
 		if(closest_hit(r, spheres, sphere_count, interval(0.001f, infinity), &rec)) {
-			float3 target = rec.p + rec.normal + random_unit_vector(seed);
-			r = ray(rec.p, target - rec.p);
-	
-			attenuation *= 0.5f;
+			Ray scattered;
+			int mat_instance = rec.mat_id.material_instance;
+			int mat_type = rec.mat_id.material_type;
+			bool scatter = false;
+			float3 color = (float3)(0, 0, 0);
+
+			switch(mat_type) {
+				case MATERIAL_LAMBERTIAN: 
+					{
+						scatter = lambertian_scatter(&lambertians[mat_instance], &r, &rec, &color, &scattered, seed);
+					} break;
+				case MATERIAL_METAL:
+					{
+						scatter = metal_scatter(&metals[mat_instance], &r, &rec, &color, &scattered, seed);
+					} break;
+			}
+
+			if(!scatter) {
+				return (float3)(0, 0, 0);
+			}
+
+			r = scattered;
+			attenuation *= color;
 		} else {
 			float3 unit_direction = normalize(r.d);
 			float a = 0.5 * (unit_direction.y + 1.0);
 	
-			color = ((1.0f-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0));
+			attenuation *= ((1.0f-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0));
 			break;
-		}
+		} 	
 	}
 	
-	return color * attenuation;
+	return attenuation;
 }
 
 kernel void test_kernel(
@@ -60,7 +80,9 @@ kernel void test_kernel(
 	global Sphere* spheres, 
 	int sphere_count,
 	global uint2* seeds,
-	int max_depth
+	int max_depth,
+	constant Lambertian* lambertians,
+	constant Metal* metals
 ) {
 	const uint width = get_image_width(input);
 	const uint height = get_image_height(input);
@@ -89,7 +111,7 @@ kernel void test_kernel(
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals);
 
 	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	
