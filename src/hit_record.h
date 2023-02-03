@@ -7,6 +7,7 @@ typedef struct { uint material_type, material_instance; } MaterialIdentifier;
 
 MaterialIdentifier mat_id_lambertian(uint instance) { return (MaterialIdentifier){MATERIAL_LAMBERTIAN, instance}; }
 MaterialIdentifier mat_id_metal(uint instance) { return (MaterialIdentifier){MATERIAL_METAL, instance}; }
+MaterialIdentifier mat_id_dielectric(uint instance) { return (MaterialIdentifier){MATERIAL_DIELECTRIC, instance}; }
 
 typedef struct {
 	float3 p;

@@ -21,8 +21,10 @@
 #include "ppm.h"
 #include "cl_buffer.h"
 #include "utils.h"
+
 #include "lambertian.h"
 #include "metal.h"
+#include "dielectric.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -43,9 +45,9 @@ using std::chrono::milliseconds;
 int main(void) {
   cl_int err;
 
-  int imageWidth = 1920;
-  int imageHeight = 1080;
-  int numSamples = 10000;
+  int imageWidth = 400;
+  int imageHeight = 225;
+  int numSamples = 100;
   int maxDepth = 50;
 	
   auto [context, queue, device] = setupCL();
@@ -62,8 +64,10 @@ int main(void) {
 
   CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 10 * 10 * 10); 
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
+
   CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY);
   CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY);
+  CLBuffer<Dielectric> dielectricts(context, queue, CL_MEM_READ_ONLY);
 
   std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
   std::mt19937 generator;
@@ -72,8 +76,9 @@ int main(void) {
     .push_back({
         sphere({0, -100.5, -1}, 100, mat_id_lambertian(0)),
         sphere({0, 0, -1}, 0.5f, mat_id_lambertian(1)), 
-        sphere({-1, 0, -1}, 0.5f, mat_id_metal(0)), 
-        sphere({+1, 0, -1}, 0.5f, mat_id_metal(1)) 
+        sphere({-1, 0, -1}, 0.5f, mat_id_dielectric(0)), 
+        sphere({-1, 0, -1}, -0.45f, mat_id_dielectric(0)), 
+        sphere({+1, 0, -1}, 0.5f, mat_id_metal(0)) 
     }).uploadToDevice();
   
   for (int i = 0; i < imageWidth * imageHeight; i++) {
@@ -92,7 +97,11 @@ int main(void) {
     .uploadToDevice();
 
   metals
-    .push_back({metal({0.8, 0.8, 0.8}), metal({0.8, 0.6, 0.2})})
+    .push_back(metal({0.8, 0.6, 0.2}, 1.0))
+    .uploadToDevice();
+
+  dielectricts
+    .push_back(dielectric(1.5))
     .uploadToDevice();
 
   clErr(kernel.setArg(0, outputImage)); // Input image
@@ -102,6 +111,7 @@ int main(void) {
   clErr(kernel.setArg(4, maxDepth));
   clErr(kernel.setArg(5, lambertians.devBuffer()));
   clErr(kernel.setArg(6, metals.devBuffer()));
+  clErr(kernel.setArg(7, dielectricts.devBuffer()));
   
   cl::Event event;
   cl::NDRange image_size((std::size_t)image.width, (std::size_t)image.height, 1);

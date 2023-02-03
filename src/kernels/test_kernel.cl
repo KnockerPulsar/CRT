@@ -5,6 +5,7 @@
 #include "cl_util.cl"
 #include "lambertian.h"
 #include "metal.h"
+#include "dielectric.h"
 
 #define MAX_DEPTH 64
 // Seems like we don't need gamma correction?
@@ -31,7 +32,16 @@ bool closest_hit(
 	return hit_anything;
 }
 
-float3 ray_color(Ray r, Sphere* spheres, int sphere_count, int max_depth, uint2* seed, constant Lambertian* lambertians, constant Metal* metals) {
+float3 ray_color(
+	Ray r,
+	Sphere* spheres,
+	int sphere_count,
+	int max_depth,
+	uint2* seed,
+	constant Lambertian* lambertians,
+	constant Metal* metals,
+	constant Dielectric* dielectrics
+) {
 
 	max_depth = min(max_depth, MAX_DEPTH);
 
@@ -47,18 +57,19 @@ float3 ray_color(Ray r, Sphere* spheres, int sphere_count, int max_depth, uint2*
 			float3 color = (float3)(0, 0, 0);
 
 			switch(mat_type) {
-				case MATERIAL_LAMBERTIAN: 
-					{
-						scatter = lambertian_scatter(&lambertians[mat_instance], &r, &rec, &color, &scattered, seed);
-					} break;
-				case MATERIAL_METAL:
-					{
-						scatter = metal_scatter(&metals[mat_instance], &r, &rec, &color, &scattered, seed);
-					} break;
-			}
+				case MATERIAL_LAMBERTIAN: {
+					scatter = lambertian_scatter(&lambertians[mat_instance], &r, &rec, &color, &scattered, seed);
+				} break;
+				case MATERIAL_METAL: {
+					scatter = metal_scatter(&metals[mat_instance], &r, &rec, &color, &scattered, seed);
+				} break;
+				case MATERIAL_DIELECTRIC: {
+					scatter = dielectric_scatter(dielectrics[mat_instance], &r, &rec, &color, &scattered, seed);
+			    }
+		}
 
-			if(!scatter) {
-				return (float3)(0, 0, 0);
+		if(!scatter) {
+			return (float3)(0, 0, 0);
 			}
 
 			r = scattered;
@@ -82,7 +93,8 @@ kernel void test_kernel(
 	global uint2* seeds,
 	int max_depth,
 	constant Lambertian* lambertians,
-	constant Metal* metals
+	constant Metal* metals,
+	constant Dielectric* dielectrics
 ) {
 	const uint width = get_image_width(input);
 	const uint height = get_image_height(input);
@@ -111,7 +123,7 @@ kernel void test_kernel(
 	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals, dielectrics);
 
 	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	

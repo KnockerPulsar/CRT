@@ -76,7 +76,17 @@ float3 float3_reflect(float3 v, float3 n) {
 	return v - 2 * dot(v, n) * n;
 }
 
+float3 float3_refract(float3 v, float3 n, float etai_over_etat) {
+	float cos_theta = fmin(dot(-v, n), 1);
+	float3 r_out_perp = etai_over_etat * (v + cos_theta * n);
+	float3 r_out_para = -sqrt(fabs(1 - length(r_out_perp) * length(r_out_perp))) * n;
+
+	return r_out_perp + r_out_para;
+
+}
+
 enum MaterialTypes {
 	MATERIAL_LAMBERTIAN,
-	MATERIAL_METAL
+	MATERIAL_METAL,
+	MATERIAL_DIELECTRIC
 };
