@@ -1,30 +1,45 @@
 #pragma once
 
-#include "crt.h"
-#include <algorithm>
+#include "CLUtil.h"
+#include "cl_util.cl"
+#include "ray.h"
 
-struct Camera {
+#ifndef OPENCL 
+#include <math.h>
+#endif 
+
+SHARED_STRUCT_START(Camera) {
 	float3 origin, lower_left_corner;
 	float3 horizontal, vertical;
+	float  vfov;
 
-	Camera() {
-		float aspect_ratio = 16.0 / 9.0;
-	
-		float viewport_height = 2.0f;
-		float viewport_width = aspect_ratio * viewport_height; 
-		float focal_length = 1;
+// C++ (host) code
+#ifndef OPENCL
 
-		origin = (float3){{0, 0, 0}};
-		horizontal = (float3){{viewport_width, 0, 0}};
-		vertical = (float3){{0, viewport_height, 0}};
+	Camera() : vfov(40) {}
 
-		// auto lower_left_corner = origin - horizontal/2 - vertical/2 - vec3(0, 0, focal_length);
-		lower_left_corner.v4 = origin.v4 - horizontal.v4/2 - vertical.v4/2 - (float3){{0, 0, focal_length}}.v4;
+	void initialize(float aspect_ratio) {
+			float theta = degrees_to_radians(vfov);
+			float h = tan(theta/2);
+			float viewport_height = 2.0f * h;
+			float viewport_width = aspect_ratio * viewport_height; 
+			float focal_length = 1;
+
+			origin = (float3){0, 0, 0};
+			horizontal = (float3){viewport_width, 0, 0};
+			vertical = (float3){0, viewport_height, 0};
+
+			// auto lower_left_corner = origin - horizontal/2 - vertical/2 - vec3(0, 0, focal_length);
+			lower_left_corner = origin - horizontal/2 - vertical/2 - (float3){0, 0, focal_length};
 	}
-	
-	Ray get_ray(float s, float t) const {
+#endif
+
+} SHARED_STRUCT_END(Camera);
+
+
+// OpenCL C (device) code
+Ray camera_get_ray(const Camera* cam, float s, float t) {
 		float3 direction;
-		direction.v4 = lower_left_corner.v4 + s * horizontal.v4 + (1-t)*vertical.v4 - origin.v4;
-		return ray(origin, direction);
-	}
-};
+		direction = cam->lower_left_corner + s * cam->horizontal + (1-t) * cam->vertical - cam->origin;
+		return ray(cam->origin, direction);
+} 

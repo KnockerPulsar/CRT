@@ -1,3 +1,5 @@
+#pragma once
+
 #include "CLUtil.h"
 #include "cl_util.cl"
 #include "ray.h"

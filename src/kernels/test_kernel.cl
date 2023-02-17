@@ -6,6 +6,7 @@
 #include "lambertian.h"
 #include "metal.h"
 #include "dielectric.h"
+#include "camera.h"
 
 #define MAX_DEPTH 64
 // Seems like we don't need gamma correction?
@@ -94,20 +95,11 @@ kernel void test_kernel(
 	int max_depth,
 	constant Lambertian* lambertians,
 	constant Metal* metals,
-	constant Dielectric* dielectrics
+	constant Dielectric* dielectrics,
+	Camera camera
 ) {
 	const uint width = get_image_width(input);
 	const uint height = get_image_height(input);
-
-	const float aspect_ratio = (float)width / height;
-	const float viewport_height = 2.0;
-	const float viewport_width = aspect_ratio * viewport_height;
-	const float focal_length = 1.0;
-	
-	float3 origin = (float3)(0, 0, 0);
-	float3 horizontal = (float3)(viewport_width, 0, 0);
-	float3 vertical = (float3)(0, viewport_height, 0);
-	float3 lower_left_corner = origin - horizontal/2 - vertical/2 - (float3)(0, 0, focal_length);
 	
 	float2 pos = {get_global_id(0), get_global_id(1)};
 	int thread_index = get_global_id(0) + width * get_global_id(1);
@@ -120,7 +112,7 @@ kernel void test_kernel(
 	float u = (float)(pos.x+du) / (float)(width-1);
 	float v = (float)(pos.y+dv) / (float)(height-1);
 	
-	Ray r = ray(origin, lower_left_corner + u * horizontal + (1-v)*vertical - origin);
+	Ray r = camera_get_ray(&camera, u, v);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
 	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals, dielectrics);

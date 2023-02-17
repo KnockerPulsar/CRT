@@ -1,3 +1,5 @@
+#pragma once
+
 #include "CLUtil.h"
 #include "hit_record.h"
 #include "cl_util.cl"

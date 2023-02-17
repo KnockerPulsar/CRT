@@ -16,6 +16,7 @@
 #include <ranges>
 #include <chrono>
 
+#include "camera.h"
 #include "hit_record.h"
 #include "sphere.h"
 #include "ppm.h"
@@ -45,10 +46,14 @@ using std::chrono::milliseconds;
 int main(void) {
   cl_int err;
 
-  int imageWidth = 400;
-  int imageHeight = 225;
-  int numSamples = 100;
+  int imageWidth = 1920;
+  int imageHeight = 1080;
+  int numSamples = 1000;
   int maxDepth = 50;
+
+  Camera cam;
+  cam.vfov = 90;
+  cam.initialize((float)(imageWidth) / imageHeight);
 	
   auto [context, queue, device] = setupCL();
 
@@ -63,24 +68,26 @@ int main(void) {
   
 
   CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 10 * 10 * 10); 
-  CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
-
   CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY);
   CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY);
   CLBuffer<Dielectric> dielectricts(context, queue, CL_MEM_READ_ONLY);
 
+  CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
+
   std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
   std::mt19937 generator;
 
+  float R = cos(pi / 4);
   spheres
     .push_back({
-        sphere({0, -100.5, -1}, 100, mat_id_lambertian(0)),
-        sphere({0, 0, -1}, 0.5f, mat_id_lambertian(1)), 
-        sphere({-1, 0, -1}, 0.5f, mat_id_dielectric(0)), 
-        sphere({-1, 0, -1}, -0.45f, mat_id_dielectric(0)), 
-        sphere({+1, 0, -1}, 0.5f, mat_id_metal(0)) 
+        sphere({-R, 0, -1}, R, mat_id_lambertian(0)),
+        sphere({ R, 0, -1}, R, mat_id_lambertian(1))
     }).uploadToDevice();
-  
+
+  lambertians
+    .push_back({lambertian({0.1, 0.1, 0.8}), lambertian({0.8, 0.1, 0.1})})
+    .uploadToDevice();
+
   for (int i = 0; i < imageWidth * imageHeight; i++) {
     float x = distribution(generator);
     float y = distribution(generator);
@@ -92,17 +99,6 @@ int main(void) {
 
   seeds.uploadToDevice();
 
-  lambertians
-    .push_back({lambertian({0.8, 0.8, 0.0}), lambertian({0.7, 0.3, 0.3})})
-    .uploadToDevice();
-
-  metals
-    .push_back(metal({0.8, 0.6, 0.2}, 1.0))
-    .uploadToDevice();
-
-  dielectricts
-    .push_back(dielectric(1.5))
-    .uploadToDevice();
 
   clErr(kernel.setArg(0, outputImage)); // Input image
   clErr(kernel.setArg(1, spheres.devBuffer()));
@@ -112,6 +108,7 @@ int main(void) {
   clErr(kernel.setArg(5, lambertians.devBuffer()));
   clErr(kernel.setArg(6, metals.devBuffer()));
   clErr(kernel.setArg(7, dielectricts.devBuffer()));
+  clErr(kernel.setArg(8, cam));
   
   cl::Event event;
   cl::NDRange image_size((std::size_t)image.width, (std::size_t)image.height, 1);

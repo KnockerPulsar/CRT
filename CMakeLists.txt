@@ -23,7 +23,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE  ${PROJECT_SOURCE_DIR}/release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 
-add_definitions(-std=gnu++0x)
 add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})
 
 target_link_libraries(
