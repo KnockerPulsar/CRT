@@ -225,6 +225,15 @@ float3 normalize(float3 v) {
   return v / length(v);
 }
 
+float3 cross(float3 a, float3 b) {
+  float3 c;
+  c.s[0] = a.s[1] * b.s[2] - a.s[2] * b.s[1];
+  c.s[1] = a.s[2] * b.s[0] - a.s[0] * b.s[2];
+  c.s[2] = a.s[0] * b.s[1] - a.s[1] * b.s[0];
+
+  return c;
+}
+
 float3 operator+(float3 a, float3 b) { 
   float3 c;
 
