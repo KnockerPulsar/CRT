@@ -1,12 +1,10 @@
 #pragma once
 #include "cl_def.cl"
 
-float degrees_to_radians(float degrees) {
-	return degrees * pi / 180.0f;
-}
-
+#ifdef OPENCL
 // https://stackoverflow.com/a/16077942
 float random_float(uint2* seed) {
+
 #ifdef OPENCL
 	const float invMaxInt = 1.0f/4294967296.0f;
 
@@ -20,8 +18,10 @@ float random_float(uint2* seed) {
 		+ (x * (x * x * 11687 + 26461) + 137589);
 
 	return convert_float(tmp) * invMaxInt;
-#endif
+#else
 	// TODO: Host side code if needed
+	return rand();
+#endif
 }
 
 float random_float_ranged(uint2* seed1, float min, float max) {
@@ -63,6 +63,15 @@ float3 random_in_hemisphere(float3 normal, uint2* seed) {
 	}
 }
 
+float3  random_in_unit_disk(uint2* seed) {
+	while(true) {
+		float3 p = (float3){random_float_ranged(seed, -1, 1), random_float_ranged(seed, -1, 1), 0.0f};
+		if(length(p) * length(p) >= 1) continue;
+
+		return p;
+	}
+}
+
 bool float3_near_zero(float3 v) {
 	const float s = 1e-8;
 #ifdef OPENCL
@@ -76,14 +85,17 @@ float3 float3_reflect(float3 v, float3 n) {
 	return v - 2 * dot(v, n) * n;
 }
 
-float3 float3_refract(float3 v, float3 n, float etai_over_etat) {
-	float cos_theta = fmin(dot(-v, n), 1);
-	float3 r_out_perp = etai_over_etat * (v + cos_theta * n);
-	float3 r_out_para = -sqrt(fabs(1 - length(r_out_perp) * length(r_out_perp))) * n;
+float3 float3_refract(float3 uv, float3 n, float etai_over_etat) {
+    float cos_theta = fmin(dot(-uv, n), 1.0f);
+    float3 r_out_perp =  etai_over_etat * (uv + cos_theta*n);
 
-	return r_out_perp + r_out_para;
-
+	float perp_length_squared = length(r_out_perp) * length(r_out_perp);
+    float3 r_out_parallel = -sqrt(fabs(1.0f - perp_length_squared)) * n;
+    /* printf("%v3f, %v3f\n", r_out_perp, r_out_parallel); */
+    return r_out_perp + r_out_parallel;
 }
+#endif
+
 
 enum MaterialTypes {
 	MATERIAL_LAMBERTIAN,

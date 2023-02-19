@@ -1,4 +1,5 @@
 #include "CLUtil.h"
+#include "cl_util.cl"
 #include "utils.h"
 
 #include <CL/cl.h>
@@ -256,6 +257,17 @@ float3 operator-(float3 a, float3 b) {
   return c;
 }
 
+float3 operator*(float3 a, float3 b) {
+  float3 c;
+
+  c.s[0] = a.s[0] * b.s[0];  
+  c.s[1] = a.s[1] * b.s[1];  
+  c.s[2] = a.s[2] * b.s[2];  
+  c.s[3] = 0;
+
+  return c;
+}
+
 float3 operator*(float3 a, float t) {
   float3 c;
 
@@ -288,5 +300,29 @@ float3 operator-(float3 a) {
   b.s[3] = 0;
 
   return b;
+}
+
+float random_float() {
+    return rand() / (RAND_MAX + 1.0);
+}
+
+float random_float_ranged(float min, float max) {
+    return min + (max-min) * random_float();
+}
+
+float3 random_float3() {
+    return { random_float(), random_float(), random_float() };
+}
+
+float3 random_float3_ranged(float min, float max) {
+  return { 
+    random_float_ranged(min, min), 
+    random_float_ranged(min, min), 
+    random_float_ranged(min, min)
+  };
+}
+
+float degrees_to_radians(float degrees) {
+  return degrees * pi / 180.0f;
 }
 

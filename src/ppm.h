@@ -1,29 +1,32 @@
+#include <math.h>
 #include <stdio.h>
 #include "common.h"
 #include "CLUtil.h"
 
-#define RGB8_STRIDE 3
-#define RGBA8_STRIDE 4
+#define RGB_CHANNELS 3
 #define RGBA_CHANNELS 4
+
+#define RGB_STRIDE 3
+#define RGBA_STRIDE 4
 
 /*
  * Originally coded as RGB8. But OpenCL supports RGBA8 at a minimum so converted to that.
  */
 class PPMImage {
 	public:
-		u8* data;
+		float* data;
 		int width, height;
 
 		static PPMImage magenta(int w, int h) {
 			PPMImage image;
-			image.data = new u8[w * h * RGBA_CHANNELS];
+			image.data = new float[w * h * RGB_CHANNELS];
 			
 			image.width = w;
 			image.height = h;
 
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < w; x++) {
-					image.write_pixel_rgb_u8(x, y, 255, 0, 255);
+					image.write_pixel_rgb_f32(x, y, 1, 0, 1);
 				}	
 			}
 
@@ -42,15 +45,24 @@ class PPMImage {
 			fprintf(f, "%d %d\n" , width, height);
 			fprintf(f, "255\n");
 
+			float gamma_scale = 1.0f / samples_per_pixel;
 
 			for (int y = 0; y < height; y++) {
 				for (int x = 0; x < width; x++) {
-					int index = (y * width + x) * RGBA8_STRIDE;
-					u8 r = data[index + 0];
-					u8 g = data[index + 1];
-					u8 b = data[index + 2];
+					int index = (y * width + x) * RGB_STRIDE;
+					float r = data[index + 0];
+					float g = data[index + 1];
+					float b = data[index + 2];
 
-					fprintf(f, "%d %d %d\n", r, g, b);
+					r = clamp(sqrt(gamma_scale * r), 0.0, 0.999);
+					g = clamp(sqrt(gamma_scale * g), 0.0, 0.999);
+					b = clamp(sqrt(gamma_scale * b), 0.0, 0.999);
+					
+					u8 r_u8 = 256 * r;
+					u8 g_u8 = 256 * g;
+					u8 b_u8 = 256 * b;
+
+					fprintf(f, "%d %d %d\n", r_u8, g_u8, b_u8);
 				}	
 			}
 
@@ -59,26 +71,18 @@ class PPMImage {
 			printf("Image successfully written at %s\n", path);
 		}
 
-		// Data should be an RGB8 pixel buffer
-		void write_pixel_rgb_u8(int x, int y, u8 r, u8 g, u8 b) {
-			int index = (y * width + x) * RGBA8_STRIDE;
+		void write_pixel_rgb_f32(int x, int y, float r, float g, float b) {
+			int index = (y * width + x) * RGB_STRIDE;
 			data[index + 0] = r;
 			data[index + 1] = g;
 			data[index + 2] = b;
 		}
-		
-		void write_pixel_rgb_f32(int x, int y, float r, float g, float b) {
-			u8 red 		= (u8) (clamp(r, 0.0f, 1.0f) * 255);
-			u8 green 	= (u8) (clamp(g, 0.0f, 1.0f) * 255);
-			u8 blue 	= (u8) (clamp(b, 0.0f, 1.0f) * 255);
-		
-			write_pixel_rgb_u8(x, y, red, green, blue);
-		}
+
 
 		void from_rgb_f32(float* new_data) {
 			for (int y = 0; y < height; y++) {
 				for (int x = 0; x < width; x++) {
-					int index = (y * width + x) * RGBA8_STRIDE;
+					int index = (y * width + x) * RGBA_STRIDE;
 					float r = new_data[index + 0];
 					float g = new_data[index + 1];
 					float b = new_data[index + 2];

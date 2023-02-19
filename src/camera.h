@@ -9,15 +9,23 @@
 #endif 
 
 SHARED_STRUCT_START(Camera) {
+	// Supplied by the user 
+	float3 lookfrom, lookat, vup;
+	float  vfov, aperature, focus_dist;
+
+	// Cached. Initialized in `initialize`.
 	float3 origin, lower_left_corner;
 	float3 horizontal, vertical;
-	float3 lookfrom, lookat, vup;
-	float  vfov;
+	float3 u, v, w;
+	float lens_radius;
+
 
 // C++ (host) code
-#ifndef OPENCL
-
-	Camera() : vfov(40), lookfrom({0, 0, -1}), lookat({0, 0, 0}), vup({0, 1, 0}) {}
+#ifndef OPENCL 
+	Camera() 
+		: lookfrom({0, 0, -1}), lookat({0, 0, 0}), vup({0, 1, 0}),
+			vfov(40), aperature(0), focus_dist(10)
+		{}
 
 	void initialize(float aspect_ratio) {
 			float theta = degrees_to_radians(vfov);
@@ -25,25 +33,36 @@ SHARED_STRUCT_START(Camera) {
 			float viewport_height = 2.0f * h;
 			float viewport_width = aspect_ratio * viewport_height; 
 
-			float3 w = normalize(lookfrom - lookat);
-			float3 u = normalize(cross(vup, w));
-			float3 v = cross(w, u);
+			w = normalize(lookfrom - lookat);
+			u = normalize(cross(vup, w));
+			v = cross(w, u);
 
 			origin = lookfrom;
-			horizontal = viewport_width * u;
-			vertical = viewport_height * v;
+			horizontal = focus_dist * viewport_width * u;
+			vertical = focus_dist * viewport_height * v;
 
-			// auto lower_left_corner = origin - horizontal/2 - vertical/2 - vec3(0, 0, focal_length);
-			lower_left_corner = origin - horizontal/2 - vertical/2 - w;
+			lower_left_corner = origin - horizontal/2 - vertical/2 - focus_dist * w;
+			lens_radius = aperature / 2;
 	}
 #endif
+
 
 } SHARED_STRUCT_END(Camera);
 
 
 // OpenCL C (device) code
-Ray camera_get_ray(const Camera* cam, float s, float t) {
-		float3 direction;
-		direction = cam->lower_left_corner + s * cam->horizontal + (1-t) * cam->vertical - cam->origin;
-		return ray(cam->origin, direction);
+#ifdef OPENCL
+Ray camera_get_ray(const Camera* cam, float s, float t, uint2* seed) {
+		float3 rd = cam->lens_radius * random_in_unit_disk(seed);
+		float3 offset = cam->u * rd.x + cam->v * rd.y;
+
+		float3 direction = 
+			cam->lower_left_corner 
+			+ s * cam->horizontal 
+			+ (1-t) * cam->vertical 
+			- cam->origin 
+			- offset;
+
+		return ray(cam->origin + offset, direction);
 } 
+#endif

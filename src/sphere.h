@@ -15,6 +15,7 @@ Sphere sphere(float3 c, float r, MaterialIdentifier mat_id) {
 	return (Sphere) {c, r, mat_id};
 }
 
+#ifdef OPENCL
 bool sphere_hit(Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
 	float3 oc = r->o - s->center;
 
@@ -45,3 +46,4 @@ bool sphere_hit(Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
 
 	return true;
 }
+#endif

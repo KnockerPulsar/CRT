@@ -9,7 +9,6 @@
 #include "camera.h"
 
 #define MAX_DEPTH 64
-// Seems like we don't need gamma correction?
 
 bool closest_hit(
 	Ray r,
@@ -39,9 +38,9 @@ float3 ray_color(
 	int sphere_count,
 	int max_depth,
 	uint2* seed,
-	constant Lambertian* lambertians,
-	constant Metal* metals,
-	constant Dielectric* dielectrics
+	Lambertian* lambertians,
+	Metal* metals,
+	Dielectric* dielectrics
 ) {
 
 	max_depth = min(max_depth, MAX_DEPTH);
@@ -66,15 +65,16 @@ float3 ray_color(
 				} break;
 				case MATERIAL_DIELECTRIC: {
 					scatter = dielectric_scatter(dielectrics[mat_instance], &r, &rec, &color, &scattered, seed);
-			    }
-		}
+				} break;
+			}
 
-		if(!scatter) {
-			return (float3)(0, 0, 0);
+			if(!scatter) {
+				return (float3)(0, 0, 0);
 			}
 
 			r = scattered;
 			attenuation *= color;
+
 		} else {
 			float3 unit_direction = normalize(r.d);
 			float a = 0.5 * (unit_direction.y + 1.0);
@@ -93,9 +93,9 @@ kernel void test_kernel(
 	int sphere_count,
 	global uint2* seeds,
 	int max_depth,
-	constant Lambertian* lambertians,
-	constant Metal* metals,
-	constant Dielectric* dielectrics,
+	global Lambertian* lambertians,
+	global Metal* metals,
+	global Dielectric* dielectrics,
 	Camera camera
 ) {
 	const uint width = get_image_width(input);
@@ -112,7 +112,7 @@ kernel void test_kernel(
 	float u = (float)(pos.x+du) / (float)(width-1);
 	float v = (float)(pos.y+dv) / (float)(height-1);
 	
-	Ray r = camera_get_ray(&camera, u, v);
+	Ray r = camera_get_ray(&camera, u, v, &seed);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
 	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals, dielectrics);

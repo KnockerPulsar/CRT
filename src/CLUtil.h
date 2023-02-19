@@ -24,6 +24,7 @@
 #include <optional>
 #include <cmath>
 #include <utility>
+#include <cassert>
 
 #include "cl_errors.h"
 
@@ -37,7 +38,7 @@
   inline void checkErr(cl_int err, const char *name) {
     if (err != CL_SUCCESS) {
       std::cerr << "ERROR: " << name << " (" << clErrorString(err) << ") " << std::endl;
-      exit(EXIT_FAILURE);
+      assert(err == CL_SUCCESS);
     }
   }
 
@@ -51,10 +52,22 @@
 
   float3 operator+(float3 a, float3 b);
   float3 operator-(float3 a, float3 b);
+  float3 operator*(float3 a, float3 b);
+
   float3 operator*(float3 a, float t);
   float3 operator*(float t, float3 a);
   float3 operator/(float3 a, float t);
   float3 operator-(float3 a);
+
+  // TODO: move random functions to one file
+  // with #ifdef OPENCL?
+  float random_float();
+  float random_float_ranged(float min, float max);
+  float3 random_float3();
+  float3 random_float3_ranged(float min, float max);
+
+
+  float degrees_to_radians(float degrees);
 #endif
 
 

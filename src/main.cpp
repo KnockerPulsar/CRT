@@ -32,6 +32,82 @@ using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
+void random_spheres(
+    CLBuffer<Sphere>& spheres,
+    CLBuffer<Lambertian>& lambertians,
+    CLBuffer<Metal>& metals,
+    CLBuffer<Dielectric>& dielectrics,
+    Camera& camera,
+    int& imageWidth, int& imageHeight,
+    int& samplesPerPixel, int& maxDepth
+) {
+  imageWidth = 1920;
+  imageHeight = 1080;
+  samplesPerPixel = 1000;
+  maxDepth = 50;
+
+  camera.lookfrom = {13, 2, 3};
+  camera.lookat   = {0,  0, 0};
+  camera.vup      = {0,  1, 0};
+  camera.vfov     = 20;
+  camera.aperature= 0.1;
+  camera.focus_dist = 10;
+
+  lambertians.push_back(lambertian({0.5, 0.5, 0.5}));
+  spheres.push_back(sphere({0, -1000, 0}, 1000, mat_id_lambertian(0)));
+
+
+  auto c = 11;
+  for(int a = -c; a < c; a++) {
+    for(int b = -c; b < c; b++) {
+      float choose_mat = random_float();
+
+      float3 center = {a + 0.9f * random_float(), 0.2f, b + 0.9f * random_float()};
+
+      if(length(center - (float3){4, 0.2, 0}) > 0.9) {
+        MaterialIdentifier sphere_material;
+
+        if(choose_mat < 0.8) {
+          float3 albedo = random_float3() * random_float3();
+
+          uint lambertian_count = lambertians.count();
+          sphere_material = mat_id_lambertian(lambertian_count);
+
+          lambertians.push_back({albedo});
+          spheres.push_back(sphere(center, 0.2, sphere_material));
+        } else if (choose_mat < 0.95) {
+          float3 albedo = random_float3_ranged(0.5, 1);
+          float fuzz = random_float_ranged(0, 0.5);
+
+          uint metal_count = metals.count();
+          sphere_material = mat_id_metal(metal_count);
+
+          metals.push_back({albedo, fuzz});
+          spheres.push_back(sphere(center, 0.2, sphere_material));
+        } else {
+          uint dielectric_count = dielectrics.count();
+          sphere_material = mat_id_dielectric(dielectric_count);
+
+          dielectrics.push_back(dielectric(1.5));
+          spheres.push_back(sphere(center, 0.2, sphere_material));
+        }
+      }
+    }
+  }
+
+  MaterialIdentifier material1 = mat_id_dielectric(dielectrics.count());
+  dielectrics.push_back(dielectric(1.5));
+  spheres.push_back(sphere({0, 1, 0}, 1.0f, material1));
+
+  MaterialIdentifier material2 = mat_id_lambertian(lambertians.count());
+  lambertians.push_back({0.4, 0.2, 0.1});
+  spheres.push_back(sphere({-4, 1, 0}, 1.0f, material2));
+
+  MaterialIdentifier material3 = mat_id_metal(metals.count());
+  metals.push_back({{0.7, 0.6, 0.5}, 0.0});
+  spheres.push_back(sphere({4, 1, 0}, 1.0f, material3));
+}
+
 /*
  * for each sample:
  *    for each bounce:
@@ -48,15 +124,10 @@ int main(void) {
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int numSamples = 1000;
-  int maxDepth = 50;
+  int samplesPerPixel = 10000;
+  int maxDepth = 500;
 
   Camera cam;
-  cam.vfov = 20;
-  cam.lookfrom = {-2, 2, 1};
-  cam.lookat   = {0, 0, -1};
-  cam.vup      = {0, 1, 0};
-  cam.initialize((float)(imageWidth) / imageHeight);
 	
   auto [context, queue, device] = setupCL();
 
@@ -66,29 +137,21 @@ int main(void) {
   
   cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
   auto image  = PPMImage::magenta(imageWidth, imageHeight);
+#if 1
   cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
   clErr(err);
   
 
-  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 10 * 10 * 10); 
+  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 500); 
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
 
-  CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY);
-  CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY);
-  CLBuffer<Dielectric> dielectricts(context, queue, CL_MEM_READ_ONLY);
+  CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY, 500);
+  CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY, 500);
+  CLBuffer<Dielectric> dielectrics(context, queue, CL_MEM_READ_ONLY, 500);
 
   std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
   std::mt19937 generator;
 
-  spheres
-    .push_back({
-        sphere({0, -100.5, -1}, 100, mat_id_lambertian(0)),
-        sphere({0, 0, -1}, 0.5f, mat_id_lambertian(1)), 
-        sphere({-1, 0, -1}, 0.5f, mat_id_dielectric(0)), 
-        sphere({-1, 0, -1}, -0.45f, mat_id_dielectric(0)), 
-        sphere({+1, 0, -1}, 0.5f, mat_id_metal(0)) 
-    }).uploadToDevice();
-  
   for (int i = 0; i < imageWidth * imageHeight; i++) {
     float x = distribution(generator);
     float y = distribution(generator);
@@ -100,17 +163,21 @@ int main(void) {
 
   seeds.uploadToDevice();
 
-  lambertians
-    .push_back({lambertian({0.8, 0.8, 0.0}), lambertian({0.7, 0.3, 0.3})})
-    .uploadToDevice();
+  random_spheres(
+      spheres,
+      lambertians,
+      metals,
+      dielectrics,
+      cam,
+      imageWidth, imageHeight,
+      samplesPerPixel, maxDepth
+  );
 
-  metals
-    .push_back(metal({0.8, 0.6, 0.2}, 0.1))
-    .uploadToDevice();
-
-  dielectricts
-    .push_back(dielectric(1.5))
-    .uploadToDevice();
+  cam.initialize((float)(imageWidth) / imageHeight);
+  spheres.uploadToDevice();
+  lambertians.uploadToDevice();
+  metals.uploadToDevice();
+  dielectrics.uploadToDevice();
 
   clErr(kernel.setArg(0, outputImage)); // Input image
   clErr(kernel.setArg(1, spheres.devBuffer()));
@@ -119,19 +186,19 @@ int main(void) {
   clErr(kernel.setArg(4, maxDepth));
   clErr(kernel.setArg(5, lambertians.devBuffer()));
   clErr(kernel.setArg(6, metals.devBuffer()));
-  clErr(kernel.setArg(7, dielectricts.devBuffer()));
+  clErr(kernel.setArg(7, dielectrics.devBuffer()));
   clErr(kernel.setArg(8, cam));
   
   cl::Event event;
   cl::NDRange image_size((std::size_t)image.width, (std::size_t)image.height, 1);
   cl::NDRange zero_offset(0, 0, 0);
 
-  std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, numSamples, maxDepth);
+  std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth);
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
 
   auto start = high_resolution_clock::now();
-  for (int i = 0 ; i < numSamples; i++) {
-    std::cout << "\rSample progress: " << ((float)i/(numSamples-1)) * 100 << "%" << std::flush;
+  for (int i = 0 ; i < samplesPerPixel; i++) {
+    std::cout << "\rSample progress: " << ((float)i/(samplesPerPixel-1)) * 100 << "%" << std::flush;
     clErr(queue.enqueueNDRangeKernel(kernel, zero_offset, image_size, cl::NullRange, NULL, &event));
     event.wait();
   }
@@ -144,15 +211,16 @@ int main(void) {
   
   
   pixelwise_divide.setArg(0, outputImage);
-  pixelwise_divide.setArg(1, (float)numSamples);
+  pixelwise_divide.setArg(1, (float)samplesPerPixel);
   
   clErr(queue.enqueueNDRangeKernel(pixelwise_divide, zero_offset, image_size));
   
   float* new_data = new float[imageWidth * imageHeight * 4];
   queue.enqueueReadImage(outputImage, CL_TRUE, origin, region, 0, 0, new_data);
   image.from_rgb_f32(new_data);
+#endif
 
-  image.write("output.ppm", numSamples);
+  image.write("output.ppm", 1);
   
 	return EXIT_SUCCESS;
 }

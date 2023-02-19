@@ -1,5 +1,5 @@
 #include "CLUtil.h"
-
+#include <cassert>
 #include <vector>
 
 template<class T> 
@@ -31,6 +31,7 @@ class CLBuffer {
     }
 
     void uploadToDevice() {
+      assert(hostBuffer.data() != nullptr);
       clErr(queue.enqueueWriteBuffer(deviceBuffer, CL_TRUE, 0, hostBuffer.size() * sizeof(T), hostBuffer.data()));
     }
 

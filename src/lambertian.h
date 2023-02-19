@@ -13,7 +13,8 @@ Lambertian lambertian(float3 alb) {
   return (Lambertian) { alb };
 }
 
-bool lambertian_scatter(constant Lambertian* lamb, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* seed) {
+#ifdef OPENCL
+bool lambertian_scatter(Lambertian* lamb, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* seed) {
   float3 scatter_direction = rec->normal + random_unit_vector(seed);
 
   if(float3_near_zero(scatter_direction)) {
@@ -25,3 +26,4 @@ bool lambertian_scatter(constant Lambertian* lamb, const Ray* r_in, const HitRec
 
   return true;
 }
+#endif
