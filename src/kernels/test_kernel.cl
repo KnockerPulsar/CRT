@@ -1,12 +1,13 @@
-#include "sphere.h"
-#include "hit_record.h"
-#include "ray.h"
-#include "interval.h"
-#include "cl_util.cl"
-#include "lambertian.h"
-#include "metal.h"
-#include "dielectric.h"
-#include "camera.h"
+#include "device/hit_record.h"
+#include "device/ray.h"
+#include "device/interval.h"
+#include "device/cl_util.cl"
+
+#include "common/sphere.h"
+#include "common/lambertian.h"
+#include "common/metal.h"
+#include "common/dielectric.h"
+#include "common/camera.h"
 
 #define MAX_DEPTH 64
 

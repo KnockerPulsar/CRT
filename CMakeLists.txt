@@ -2,15 +2,19 @@ cmake_minimum_required(VERSION 3.0.0)
 project(CRT VERSION 0.1.0)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+set(CMAKE_CXX_EXTENSIONS FALSE)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall")
+set(CMAKE_CXX_FLAGS "-Werror")
 
 
 set(SOURCES 
-  src/CLUtil.cpp
+  src/host/CLUtil.cpp
+  src/host/Utils.h
+  src/host/CLMath.cpp
+  src/host/Random.cpp
 )
 
 include_directories(

@@ -1,31 +1,35 @@
-#include "CLUtil.h"
+#include "host/CLUtil.h"
 
 #include <CL/cl.h>
 #include <CL/cl_ext.h>
 #include <CL/cl_platform.h>
 #include <CL/opencl.hpp>
+
 #include <cstdint>
 #include <cstdlib>
-#include <memory>
-#include <random>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <memory>
+#include <random>
 #include <string>
 #include <iomanip>
 #include <vector>
-#include <ranges>
+#include <utility>
 #include <chrono>
 
-#include "camera.h"
-#include "hit_record.h"
-#include "sphere.h"
-#include "ppm.h"
-#include "cl_buffer.h"
-#include "utils.h"
+#include "host/PPM.h"
+#include "host/Utils.h"
+#include "host/CLBuffer.h"
+#include "host/CLMath.h"
+#include "host/Random.h"
 
-#include "lambertian.h"
-#include "metal.h"
-#include "dielectric.h"
+#include "common/sphere.h"
+#include "common/camera.h"
+#include "common/lambertian.h"
+#include "common/metal.h"
+#include "common/dielectric.h"
+#include "common/material_id.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -43,18 +47,18 @@ void random_spheres(
 ) {
   imageWidth = 1920;
   imageHeight = 1080;
-  samplesPerPixel = 1000;
+  samplesPerPixel = 100;
   maxDepth = 50;
 
-  camera.lookfrom = {13, 2, 3};
-  camera.lookat   = {0,  0, 0};
-  camera.vup      = {0,  1, 0};
+  camera.lookfrom = f3(13, 2, 3);
+  camera.lookat   = f3(0,  0, 0);
+  camera.vup      = f3(0,  1, 0);
   camera.vfov     = 20;
   camera.aperature= 0.1;
   camera.focus_dist = 10;
 
-  lambertians.push_back(lambertian({0.5, 0.5, 0.5}));
-  spheres.push_back(sphere({0, -1000, 0}, 1000, mat_id_lambertian(0)));
+  lambertians.push_back(lambertian(f3(0.5, 0.5, 0.5)));
+  spheres.push_back(sphere(f3(0, -1000, 0), 1000, mat_id_lambertian(0)));
 
 
   auto c = 11;
@@ -62,10 +66,10 @@ void random_spheres(
     for(int b = -c; b < c; b++) {
       float choose_mat = random_float();
 
-      float3 center = {a + 0.9f * random_float(), 0.2f, b + 0.9f * random_float()};
+      float3 center = f3(a + 0.9f * random_float(), random_float_ranged(0.2, 2), b + 0.9f * random_float());
 
-      if(length(center - (float3){4, 0.2, 0}) > 0.9) {
-        MaterialIdentifier sphere_material;
+      if(length(center - f3(4, 0.2, 0)) > 0.9) {
+        MaterialId sphere_material;
 
         if(choose_mat < 0.8) {
           float3 albedo = random_float3() * random_float3();
@@ -95,17 +99,17 @@ void random_spheres(
     }
   }
 
-  MaterialIdentifier material1 = mat_id_dielectric(dielectrics.count());
+  MaterialId material1 = mat_id_dielectric(dielectrics.count());
   dielectrics.push_back(dielectric(1.5));
-  spheres.push_back(sphere({0, 1, 0}, 1.0f, material1));
+  spheres.push_back(sphere(f3(0, 1, 0), 1.0f, material1));
 
-  MaterialIdentifier material2 = mat_id_lambertian(lambertians.count());
-  lambertians.push_back({0.4, 0.2, 0.1});
-  spheres.push_back(sphere({-4, 1, 0}, 1.0f, material2));
+  MaterialId material2 = mat_id_lambertian(lambertians.count());
+  lambertians.push_back(lambertian(f3(0.4, 0.2, 0.1)));
+  spheres.push_back(sphere(f3(-4, 1, 0), 1.0f, material2));
 
-  MaterialIdentifier material3 = mat_id_metal(metals.count());
-  metals.push_back({{0.7, 0.6, 0.5}, 0.0});
-  spheres.push_back(sphere({4, 1, 0}, 1.0f, material3));
+  MaterialId material3 = mat_id_metal(metals.count());
+  metals.push_back({f3(0.7, 0.6, 0.5), 0.0});
+  spheres.push_back(sphere(f3(4, 1, 0), 1.0f, material3));
 }
 
 /*
@@ -135,19 +139,15 @@ int main(void) {
   
   cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
-  cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
-  auto image  = PPMImage::magenta(imageWidth, imageHeight);
-#if 1
-  cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
-  clErr(err);
-  
+  srand(42);
 
-  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, 500); 
+  int preAllocObjs = 10;
+  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, preAllocObjs); 
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
 
-  CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY, 500);
-  CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY, 500);
-  CLBuffer<Dielectric> dielectrics(context, queue, CL_MEM_READ_ONLY, 500);
+  CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
+  CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
+  CLBuffer<Dielectric> dielectrics(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
 
   std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
   std::mt19937 generator;
@@ -172,6 +172,12 @@ int main(void) {
       imageWidth, imageHeight,
       samplesPerPixel, maxDepth
   );
+
+  cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
+  auto image  = PPMImage::magenta(imageWidth, imageHeight);
+#if 1
+  cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
+  clErr(err);
 
   cam.initialize((float)(imageWidth) / imageHeight);
   spheres.uploadToDevice();
