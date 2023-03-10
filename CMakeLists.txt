@@ -7,12 +7,12 @@ set(CMAKE_CXX_EXTENSIONS FALSE)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall")
-set(CMAKE_CXX_FLAGS "-Werror")
+# set(CMAKE_CXX_FLAGS "-Werror")
 
 
 set(SOURCES 
   src/host/CLUtil.cpp
-  src/host/Utils.h
+  src/host/Utils.cpp
   src/host/CLMath.cpp
   src/host/Random.cpp
 )

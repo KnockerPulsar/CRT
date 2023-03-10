@@ -9,7 +9,13 @@ auto replaceAll(const std::string& source, std::string toBeReplaced, std::string
   return sourceCopy;
 }
 
-float clamp(float d, float min, float max) {
-  const float t = d < min ? min : d;
-  return t > max ? max : t;
+auto float3_equals(float3 a, float3 b) -> bool {
+  return a.s[0] == b.s[0] 
+    && a.s[1] && b.s[1]
+    && a.s[2] && b.s[2];
+}
+
+auto material_id_equals(MaterialId a, MaterialId b) -> bool {
+  return a.material_type == b.material_type 
+    && a.material_instance == b.material_instance;
 }

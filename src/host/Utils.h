@@ -5,6 +5,9 @@
 #include <stdexcept>
 #include <iostream>
 
+#include "common/material_id.h"
+#include "host/CLMath.h"
+
 // https://stackoverflow.com/a/26221725
 template<typename ... Args>
 std::string fmt( const std::string& format, Args ... args )
@@ -19,4 +22,6 @@ std::string fmt( const std::string& format, Args ... args )
 // https://stackoverflow.com/a/10031155
 auto replaceAll(const std::string& source, std::string toBeReplaced, std::string replacement) -> std::string;
 
-float clamp(float d, float min, float max);
+auto float3_equals(float3 a, float3 b) -> bool;
+
+auto material_id_equals(MaterialId a, MaterialId b) -> bool;

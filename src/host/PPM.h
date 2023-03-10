@@ -1,7 +1,8 @@
 #include <math.h>
 #include <stdio.h>
-#include "common.h"
-#include "CLUtil.h"
+
+#include "host/CLUtil.h"
+#include "host/Utils.h"
 
 #define RGB_CHANNELS 3
 #define RGBA_CHANNELS 4
@@ -54,9 +55,9 @@ class PPMImage {
 					float g = data[index + 1];
 					float b = data[index + 2];
 
-					r = clamp(sqrt(gamma_scale * r), 0.0, 0.999);
-					g = clamp(sqrt(gamma_scale * g), 0.0, 0.999);
-					b = clamp(sqrt(gamma_scale * b), 0.0, 0.999);
+					r = std::clamp(sqrt(gamma_scale * r), 0.0f, 0.999f);
+					g = std::clamp(sqrt(gamma_scale * g), 0.0f, 0.999f);
+					b = std::clamp(sqrt(gamma_scale * b), 0.0f, 0.999f);
 					
 					u8 r_u8 = 256 * r;
 					u8 g_u8 = 256 * g;

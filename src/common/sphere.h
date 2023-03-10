@@ -4,22 +4,45 @@
 
 #ifndef OPENCL
 #include "host/CLUtil.h"
+#include "host/Utils.h"
 #endif
 
 
-typedef struct {
+SHARED_STRUCT_START(Sphere) {
 	float3 center;
 	float radius;
 	MaterialId mat_id;
-} Sphere;
 
-Sphere sphere(float3 c, float r, MaterialId mat_id) {
-	return (Sphere) {c, r, mat_id};
-}
+#ifndef OPENCL
+	public:
+	class CLBuffer; friend CLBuffer;
+	inline static std::vector<Sphere> instances;
+
+	static void addToScene(float3 center, float radius, MaterialId id) {
+		auto sphIter = std::find(instances.begin(), instances.end(), (Sphere){center, radius, id});
+
+		if(sphIter == instances.end()) {
+			createAndPush(center, radius, id);
+		}
+
+	}
+
+	bool operator==(const Sphere& other) const {
+		return float3_equals(this->center, other.center) 
+			&& this->radius == other.radius 
+			&& material_id_equals(this->mat_id, other.mat_id);
+	}
+
+	private:
+	static void createAndPush(float3 center, float radius, MaterialId id) {
+		Sphere sphere{center, radius, id};
+		instances.push_back(sphere);
+	}
+#endif
+} SHARED_STRUCT_END(Sphere);
 
 
 #ifdef OPENCL
-
 #include "device/hit_record.h"
 #include "device/interval.h"
 #include "device/ray.h"

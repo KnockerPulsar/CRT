@@ -4,13 +4,47 @@
 #include "host/CLUtil.h"
 #endif
 
-typedef struct {
-  float ir;
-} Dielectric;
 
-Dielectric dielectric(float index_of_refraction) {
-  return (Dielectric) { index_of_refraction };
-}
+#include "common/common_defs.h"
+#include "common/material_id.h"
+
+SHARED_STRUCT_START(Dielectric) {
+  float ir;
+  MaterialId id;
+  
+#ifndef OPENCL
+  public:
+  class CLBuffer; friend CLBuffer;
+  inline static std::vector<Dielectric> instances;
+
+  static MaterialId fromIR(float ir) {
+    auto diIter = std::find(instances.begin(), instances.end(), (Dielectric){ir});
+
+    if(diIter != instances.end()) {
+      return diIter->id;
+    } else {
+      return createAndPush(ir).id;
+    }
+
+  }
+
+  bool operator==(const Dielectric& other) const {
+    return this->ir == other.ir;
+  }
+
+  private:
+  static Dielectric createAndPush(float ir) {
+    Dielectric dielectric{ir};
+
+    dielectric.id.material_type = MATERIAL_DIELECTRIC;
+    dielectric.id.material_instance = instances.size();
+
+    instances.push_back(dielectric);
+
+    return dielectric;
+  }
+#endif
+} SHARED_STRUCT_END(Dielectric);
 
 #ifdef OPENCL
 

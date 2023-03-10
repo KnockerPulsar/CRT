@@ -5,8 +5,10 @@
 #include <CL/cl_platform.h>
 #include <CL/opencl.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -37,19 +39,10 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
 void random_spheres(
-    CLBuffer<Sphere>& spheres,
-    CLBuffer<Lambertian>& lambertians,
-    CLBuffer<Metal>& metals,
-    CLBuffer<Dielectric>& dielectrics,
     Camera& camera,
     int& imageWidth, int& imageHeight,
     int& samplesPerPixel, int& maxDepth
 ) {
-  imageWidth = 1920;
-  imageHeight = 1080;
-  samplesPerPixel = 100;
-  maxDepth = 50;
-
   camera.lookfrom = f3(13, 2, 3);
   camera.lookat   = f3(0,  0, 0);
   camera.vup      = f3(0,  1, 0);
@@ -57,59 +50,37 @@ void random_spheres(
   camera.aperature= 0.1;
   camera.focus_dist = 10;
 
-  lambertians.push_back(lambertian(f3(0.5, 0.5, 0.5)));
-  spheres.push_back(sphere(f3(0, -1000, 0), 1000, mat_id_lambertian(0)));
+  Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::fromAlbedo(f3(0.5, 0.5, 0.5)));
 
 
-  auto c = 11;
-  for(int a = -c; a < c; a++) {
-    for(int b = -c; b < c; b++) {
-      float choose_mat = random_float();
+  auto bounds = 11;
+  for(int a = -bounds; a < bounds; a++) {
+    for(int b = -bounds; b < bounds; b++) {
+        float choose_mat = random_float();
 
-      float3 center = f3(a + 0.9f * random_float(), random_float_ranged(0.2, 2), b + 0.9f * random_float());
+        float3 center = f3(a + 0.9f * random_float(), random_float_ranged(0.2f, 0.6f), b + 0.9f * random_float());
 
-      if(length(center - f3(4, 0.2, 0)) > 0.9) {
-        MaterialId sphere_material;
+        if(length(center - f3(4, 0.2, 0)) > 0.9) {
+          if(choose_mat < 0.8) {
 
-        if(choose_mat < 0.8) {
-          float3 albedo = random_float3() * random_float3();
+            float3 albedo = random_float3() * random_float3();
+            Sphere::addToScene(center, 0.2, Lambertian::fromAlbedo(albedo));
 
-          uint lambertian_count = lambertians.count();
-          sphere_material = mat_id_lambertian(lambertian_count);
+          } else if (choose_mat < 0.95) {
+            float3 albedo = random_float3_ranged(0.5, 1);
+            float fuzz = random_float_ranged(0, 0.5);
 
-          lambertians.push_back({albedo});
-          spheres.push_back(sphere(center, 0.2, sphere_material));
-        } else if (choose_mat < 0.95) {
-          float3 albedo = random_float3_ranged(0.5, 1);
-          float fuzz = random_float_ranged(0, 0.5);
-
-          uint metal_count = metals.count();
-          sphere_material = mat_id_metal(metal_count);
-
-          metals.push_back({albedo, fuzz});
-          spheres.push_back(sphere(center, 0.2, sphere_material));
-        } else {
-          uint dielectric_count = dielectrics.count();
-          sphere_material = mat_id_dielectric(dielectric_count);
-
-          dielectrics.push_back(dielectric(1.5));
-          spheres.push_back(sphere(center, 0.2, sphere_material));
-        }
+            Sphere::addToScene(center, 0.2, Metal::fromAlbedoFuzz(albedo, fuzz));
+          } else {
+            Sphere::addToScene(center, 0.2, Dielectric::fromIR(random_float_ranged(1.0, 10)));
+          }
       }
     }
   }
 
-  MaterialId material1 = mat_id_dielectric(dielectrics.count());
-  dielectrics.push_back(dielectric(1.5));
-  spheres.push_back(sphere(f3(0, 1, 0), 1.0f, material1));
-
-  MaterialId material2 = mat_id_lambertian(lambertians.count());
-  lambertians.push_back(lambertian(f3(0.4, 0.2, 0.1)));
-  spheres.push_back(sphere(f3(-4, 1, 0), 1.0f, material2));
-
-  MaterialId material3 = mat_id_metal(metals.count());
-  metals.push_back({f3(0.7, 0.6, 0.5), 0.0});
-  spheres.push_back(sphere(f3(4, 1, 0), 1.0f, material3));
+  Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::fromIR(1.5));
+  Sphere::addToScene(f3(-4, 1, 0), 1.0f, Lambertian::fromAlbedo(f3(0.4, 0.2, 0.1)));
+  Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::fromAlbedoFuzz(f3(0.7, 0.6, 0.5), 0.0));
 }
 
 /*
@@ -123,31 +94,59 @@ void random_spheres(
  *        scatter(materials, image, output_rays)
  */
 
-int main(void) {
+void parseInt(int& var, const std::string& name, char** argv, int& i) {
+#define BAD_ARG() \
+    std::cerr << fmt("Invalid value for the argument \"%s\" (%s). Aborting\n", name.c_str(), argv[i+1]); \
+    std::exit(EXIT_FAILURE);
+
+  try {
+    var = std::stoi(argv[i+1]);
+  } catch(std::invalid_argument const& e) {
+    BAD_ARG()
+  }
+
+  if(var < 0) { BAD_ARG() }
+
+  i++;
+}
+
+int main(int argc, char** argv) {
   cl_int err;
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int samplesPerPixel = 10000;
-  int maxDepth = 500;
+  int samplesPerPixel = 1000;
+  int maxDepth = 50;
+
+  for(int i = 1; i < argc; i++) {
+    if(std::strcmp(argv[i], "--samples") == 0) {
+      parseInt(samplesPerPixel, "samples", argv, i);
+    } else if(std::strcmp(argv[i], "--max-depth") == 0) {
+      parseInt(maxDepth, "max-depth", argv, i);
+    }
+    else if(std::strcmp(argv[i], "--image-width") == 0) {
+      parseInt(imageWidth, "image-width", argv, i);
+    } else if(std::strcmp(argv[i], "--image-height") == 0) {
+      parseInt(imageHeight, "image-height", argv, i);
+    } else {
+      std::cerr << fmt("Unrecognized option: '%s'.", argv[i]);
+      std::cerr << "Usage:\n";
+      std::cerr << "\tCRT [--samples number] [--max-depth number] [--image-width number] [--image-height number]\n";
+      std::exit(EXIT_FAILURE);
+    }
+  }
 
   Camera cam;
 	
   auto [context, queue, device] = setupCL();
 
   cl::Kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, device);
-  
   cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
   srand(42);
 
-  int preAllocObjs = 10;
-  CLBuffer<Sphere> spheres(context, queue, CL_MEM_READ_WRITE, preAllocObjs); 
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
 
-  CLBuffer<Lambertian> lambertians(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
-  CLBuffer<Metal> metals(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
-  CLBuffer<Dielectric> dielectrics(context, queue, CL_MEM_READ_ONLY, preAllocObjs);
 
   std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
   std::mt19937 generator;
@@ -161,13 +160,9 @@ int main(void) {
     seeds.push_back((cl_uint2){{a, b}});
   }
 
-  seeds.uploadToDevice();
+  seeds.uploadToDevice(context);
 
   random_spheres(
-      spheres,
-      lambertians,
-      metals,
-      dielectrics,
       cam,
       imageWidth, imageHeight,
       samplesPerPixel, maxDepth
@@ -179,11 +174,17 @@ int main(void) {
   cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
   clErr(err);
 
+
+  CLBuffer<Sphere> spheres = CLBuffer<Sphere>::fromVector(context, queue, Sphere::instances); 
+  CLBuffer<Lambertian> lambertians = CLBuffer<Lambertian>::fromVector(context, queue, Lambertian::instances);
+  CLBuffer<Metal> metals = CLBuffer<Metal>::fromVector(context, queue, Metal::instances);
+  CLBuffer<Dielectric> dielectrics = CLBuffer<Dielectric>::fromVector(context, queue, Dielectric::instances);
+
   cam.initialize((float)(imageWidth) / imageHeight);
-  spheres.uploadToDevice();
-  lambertians.uploadToDevice();
-  metals.uploadToDevice();
-  dielectrics.uploadToDevice();
+  spheres.uploadToDevice(context);
+  lambertians.uploadToDevice(context);
+  metals.uploadToDevice(context);
+  dielectrics.uploadToDevice(context);
 
   clErr(kernel.setArg(0, outputImage)); // Input image
   clErr(kernel.setArg(1, spheres.devBuffer()));
@@ -200,6 +201,7 @@ int main(void) {
   cl::NDRange zero_offset(0, 0, 0);
 
   std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth);
+  std::cout << fmt("#Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count());
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
 
   auto start = high_resolution_clock::now();
