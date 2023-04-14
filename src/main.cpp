@@ -169,11 +169,16 @@ int main(int argc, char** argv) {
   );
 
   cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
-  auto image  = PPMImage::magenta(imageWidth, imageHeight);
+  auto image  = PPMImage::black(imageWidth, imageHeight);
+
 #if 1
   cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
   clErr(err);
 
+  const std::array<unsigned long, 3> origin = {0, 0, 0};
+  const std::array<unsigned long, 3> region = {(size_t)image.width, (size_t)image.height, 1};
+  
+  queue.enqueueWriteImage(outputImage, CL_TRUE, origin, region, 0, 0, (void*)image.data);
 
   CLBuffer<Sphere> spheres = CLBuffer<Sphere>::fromVector(context, queue, Sphere::instances); 
   CLBuffer<Lambertian> lambertians = CLBuffer<Lambertian>::fromVector(context, queue, Lambertian::instances);
@@ -213,10 +218,6 @@ int main(int argc, char** argv) {
   auto end = high_resolution_clock::now();
   std::cout << "\rDone.                            \n";
   std::cout << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
-
-  const std::array<unsigned long, 3> origin = {0, 0, 0};
-  const std::array<unsigned long, 3> region = {(size_t)image.width, (size_t)image.height, 1};
-  
   
   pixelwise_divide.setArg(0, outputImage);
   pixelwise_divide.setArg(1, (float)samplesPerPixel);

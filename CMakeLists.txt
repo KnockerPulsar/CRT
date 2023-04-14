@@ -26,6 +26,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG    ${PROJECT_SOURCE_DIR}/debug)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE  ${PROJECT_SOURCE_DIR}/release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
+link_directories(
+	/opt/rocm-5.4.3/lib/
+)
 
 add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})
 

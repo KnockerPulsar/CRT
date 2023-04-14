@@ -18,20 +18,28 @@ class PPMImage {
 		float* data;
 		int width, height;
 
-		static PPMImage magenta(int w, int h) {
+		static PPMImage with_color(int w, int h, float3 color) {
 			PPMImage image;
-			image.data = new float[w * h * RGB_CHANNELS];
+			image.data = new float[w * h * RGBA_CHANNELS];
 			
 			image.width = w;
 			image.height = h;
 
 			for (int y = 0; y < h; y++) {
 				for (int x = 0; x < w; x++) {
-					image.write_pixel_rgb_f32(x, y, 1, 0, 1);
+					image.write_pixel_rgb_f32(x, y, color.s[0], color.s[1], color.s[2]);
 				}	
 			}
 
 			return image;
+		}
+
+		static PPMImage magenta(int w, int h) {
+			return with_color(w, h, (float3){1, 0, 1});
+		}
+
+		static PPMImage black(int w, int h) {
+			return with_color(w, h, (float3){0});
 		}
 
 		void write(const char* path, int samples_per_pixel) const {
@@ -87,6 +95,10 @@ class PPMImage {
 					float r = new_data[index + 0];
 					float g = new_data[index + 1];
 					float b = new_data[index + 2];
+
+					/* if (std::isnan(r) || std::isnan(g) || std::isnan(b)) { */
+					/* 	printf("NAN Encountered at %d, %d\n", x, y); */
+					/* } */
 
 					write_pixel_rgb_f32(x, y, r, g, b);
 				}
