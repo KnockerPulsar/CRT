@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int samplesPerPixel = 100;
+  int samplesPerPixel = 1000;
   int maxDepth = 10;
 
   for(int i = 1; i < argc; i++) {
@@ -183,17 +183,7 @@ int main(int argc, char** argv) {
 
 
   uint spheres_count = spheres.count();
-  clErr(clSetKernelArg(kernel, 0, sizeof(cl_mem), &image.cl_image));
-  clErr(clSetKernelArg(kernel, 1, sizeof(cl_mem), &spheres.devBuffer()));
-  clErr(clSetKernelArg(kernel, 2, sizeof(uint), &spheres_count));
-  clErr(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bvh_nodes.devBuffer()));
-  clErr(clSetKernelArg(kernel, 4, sizeof(uint), &nodes_used));
-  clErr(clSetKernelArg(kernel, 5, sizeof(cl_mem), &seeds.devBuffer()));
-  clErr(clSetKernelArg(kernel, 6, sizeof(uint), &maxDepth));
-  clErr(clSetKernelArg(kernel, 7, sizeof(cl_mem), &lambertians.devBuffer()));
-  clErr(clSetKernelArg(kernel, 8, sizeof(cl_mem), &metals.devBuffer()));
-  clErr(clSetKernelArg(kernel, 9, sizeof(cl_mem), &dielectrics.devBuffer()));
-  clErr(clSetKernelArg(kernel, 10, sizeof(Camera), &cam));
+  kernel_parameters(kernel, 0, image.cl_image, spheres, spheres_count, bvh_nodes, nodes_used, seeds, maxDepth, lambertians, metals, dielectrics, cam);
 
   cl_event event;
   std::array<size_t, 3> image_size{(std::size_t)image.width, (std::size_t)image.height, 1};

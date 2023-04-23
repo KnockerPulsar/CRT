@@ -72,7 +72,7 @@ class CLBuffer {
       clErr(clEnqueueReadBuffer(queue, deviceBuffer, CL_TRUE, 0, hostBuffer.size() * sizeof(T), hostBuffer.data(), 0, NULL, NULL));
     }
 
-    const cl_mem& devBuffer() { return deviceBuffer; }
+    const cl_mem& devBuffer() const { return deviceBuffer; }
     const size_t count() const { return hostBuffer.size(); }
 
   private:

@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
 project(CRT VERSION 0.1.0)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_EXTENSIONS FALSE)
@@ -8,6 +7,9 @@ set(CMAKE_CXX_EXTENSIONS FALSE)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall ")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -fmax-errors=2")
 # set(CMAKE_CXX_FLAGS "-Werror")
+
+# Enable to use POCL (usually for debugging with GDB)
+# add_compile_definitions(USE_POCL)
 
 set(SOURCES 
   src/host/CLUtil.cpp

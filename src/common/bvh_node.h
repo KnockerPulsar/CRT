@@ -63,6 +63,8 @@ SHARED_STRUCT_START(BVHNode) {
 
 		update_node_bounds(root_node_index, *pool, spheres);
 		subdivide(root_node_index, *pool, spheres, nodes_used);
+
+		std::cout << "BVH built with " << nodes_used << " Nodes.\n";
 	}
 
 	void update_node_bounds(int node_index, BVHNode* pool, const std::vector<Sphere>& spheres) {
@@ -81,7 +83,7 @@ SHARED_STRUCT_START(BVHNode) {
 	void subdivide(int node_index, BVHNode* pool, std::vector<Sphere>& spheres, int& nodes_used) {
 		BVHNode& node = pool[node_index];
 
-		if(node.sphere_count <= 1) return;
+		if(node.sphere_count <= 4) return;
 
 		float3 extent = node.bounds.getExtent();
 
