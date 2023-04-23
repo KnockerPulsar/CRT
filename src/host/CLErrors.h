@@ -1,5 +1,6 @@
 #pragma once
 
+// MUST DEFINE THESE TO AVOID COMPILATION ERRORS
 #ifndef CL_TARGET_OPENCL_VERSION 
     #define CL_TARGET_OPENCL_VERSION 220
 #endif
@@ -8,9 +9,7 @@
 #define CL_HPP_TARGET_OPENCL_VERSION 220
 #endif
 
-#include <CL/cl.h>
-#include <CL/cl_platform.h>
-#include <CL/opencl.hpp>
+#include "poclu.h"
 #include <cassert>
 #include <iostream>
 

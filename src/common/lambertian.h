@@ -54,7 +54,7 @@ SHARED_STRUCT_START(Lambertian) {
 #include "device/cl_util.cl"
 #include "device/ray.h"
 
-bool lambertian_scatter(Lambertian* lamb, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* seed) {
+bool lambertian_scatter(global Lambertian* lamb, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* private seed) {
   float3 scatter_direction = rec->normal + random_unit_vector(seed);
 
   if(float3_near_zero(scatter_direction)) {

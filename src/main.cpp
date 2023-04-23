@@ -1,13 +1,10 @@
 #include "host/CLUtil.h"
 
-#include <CL/cl.h>
-#include <CL/cl_ext.h>
-#include <CL/cl_platform.h>
-#include <CL/opencl.hpp>
-
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
+#include <exception>
+#include <ostream>
 #include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +29,7 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/material_id.h"
+#include "common/bvh_node.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -44,15 +42,14 @@ void random_spheres(
     int& samplesPerPixel, int& maxDepth
 ) {
   camera.lookfrom = f3(13, 2, 3);
-  camera.lookat   = f3(0,  0, 0);
-  camera.vup      = f3(0,  1, 0);
+  camera.lookat   = f3(0, 0, 0);
+  camera.vup      = f3(0, 1, 0);
   camera.vfov     = 20;
-  camera.aperature= 0.1;
+  camera.aperature = 0.1;
   camera.focus_dist = 10;
 
   Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::fromAlbedo(f3(0.5, 0.5, 0.5)));
-
-
+#if 1
   auto bounds = 11;
   for(int a = -bounds; a < bounds; a++) {
     for(int b = -bounds; b < bounds; b++) {
@@ -77,10 +74,15 @@ void random_spheres(
       }
     }
   }
+#endif
 
   Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::fromIR(1.5));
-  Sphere::addToScene(f3(-4, 1, 0), 1.0f, Lambertian::fromAlbedo(f3(0.4, 0.2, 0.1)));
   Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::fromAlbedoFuzz(f3(0.7, 0.6, 0.5), 0.0));
+  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::fromAlbedo(f3(0.4, 0.2, 0.1)));
+
+  Dielectric::fromIR(1.5f);
+  Metal::fromAlbedoFuzz(f3(1, 1, 1), 1);
+  Lambertian::fromAlbedo(f3(.8, .8, .8));
 }
 
 /*
@@ -111,12 +113,12 @@ void parseInt(int& var, const std::string& name, char** argv, int& i) {
 }
 
 int main(int argc, char** argv) {
-  cl_int err;
+  srand(42);
 
   int imageWidth = 1920;
   int imageHeight = 1080;
-  int samplesPerPixel = 1000;
-  int maxDepth = 50;
+  int samplesPerPixel = 100;
+  int maxDepth = 10;
 
   for(int i = 1; i < argc; i++) {
     if(std::strcmp(argv[i], "--samples") == 0) {
@@ -140,96 +142,108 @@ int main(int argc, char** argv) {
 	
   auto [context, queue, device] = setupCL();
 
-  cl::Kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, device);
-  cl::Kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
+  cl_kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, device);
+  cl_kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
-  srand(42);
-
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
 
-
-  std::uniform_real_distribution<float> distribution(0.0f, 1.0f);
-  std::mt19937 generator;
+  std::uniform_int_distribution<uint> distribution(0, UINT32_MAX);
+  std::mt19937 generator{42};
 
   for (int i = 0; i < imageWidth * imageHeight; i++) {
-    float x = distribution(generator);
-    float y = distribution(generator);
-    uint a = (uint)(x * (float)UINT32_MAX);
-    uint b = (uint)(y * (float)UINT32_MAX);
-  
+    uint a = distribution(generator);
+    uint b = distribution(generator);
     seeds.push_back((cl_uint2){{a, b}});
   }
 
   seeds.uploadToDevice(context);
 
-  random_spheres(
-      cam,
-      imageWidth, imageHeight,
-      samplesPerPixel, maxDepth
-  );
+  random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);
 
-  cl::ImageFormat format = cl::ImageFormat(CL_RGBA, CL_FLOAT);
-  auto image  = PPMImage::black(imageWidth, imageHeight);
+  int root_node_index = 0;
+  int nodes_used = 0;
+  BVHNode* pool = nullptr;
+  BVHNode bvh = BVHNode(Sphere::instances, root_node_index, nodes_used, &pool);
 
-#if 1
-  cl::Image2D outputImage = cl::Image2D(context, CL_MEM_READ_WRITE, format, image.width, image.height, 0, nullptr, &err);
-  clErr(err);
-
-  const std::array<unsigned long, 3> origin = {0, 0, 0};
-  const std::array<unsigned long, 3> region = {(size_t)image.width, (size_t)image.height, 1};
-  
-  queue.enqueueWriteImage(outputImage, CL_TRUE, origin, region, 0, 0, (void*)image.data);
+  auto image  = PPMImage::black(queue, context, imageWidth, imageHeight);
+  image.write_to_device();
 
   CLBuffer<Sphere> spheres = CLBuffer<Sphere>::fromVector(context, queue, Sphere::instances); 
+  CLBuffer<BVHNode> bvh_nodes = CLBuffer<BVHNode>::fromPtr(context, queue, pool, nodes_used);
   CLBuffer<Lambertian> lambertians = CLBuffer<Lambertian>::fromVector(context, queue, Lambertian::instances);
   CLBuffer<Metal> metals = CLBuffer<Metal>::fromVector(context, queue, Metal::instances);
   CLBuffer<Dielectric> dielectrics = CLBuffer<Dielectric>::fromVector(context, queue, Dielectric::instances);
 
   cam.initialize((float)(imageWidth) / imageHeight);
   spheres.uploadToDevice(context);
+  bvh_nodes.uploadToDevice(context);
   lambertians.uploadToDevice(context);
   metals.uploadToDevice(context);
   dielectrics.uploadToDevice(context);
 
-  clErr(kernel.setArg(0, outputImage)); // Input image
-  clErr(kernel.setArg(1, spheres.devBuffer()));
-  clErr(kernel.setArg(2, spheres.count()));
-  clErr(kernel.setArg(3, seeds.devBuffer()));
-  clErr(kernel.setArg(4, maxDepth));
-  clErr(kernel.setArg(5, lambertians.devBuffer()));
-  clErr(kernel.setArg(6, metals.devBuffer()));
-  clErr(kernel.setArg(7, dielectrics.devBuffer()));
-  clErr(kernel.setArg(8, cam));
-  
-  cl::Event event;
-  cl::NDRange image_size((std::size_t)image.width, (std::size_t)image.height, 1);
-  cl::NDRange zero_offset(0, 0, 0);
+
+  uint spheres_count = spheres.count();
+  clErr(clSetKernelArg(kernel, 0, sizeof(cl_mem), &image.cl_image));
+  clErr(clSetKernelArg(kernel, 1, sizeof(cl_mem), &spheres.devBuffer()));
+  clErr(clSetKernelArg(kernel, 2, sizeof(uint), &spheres_count));
+  clErr(clSetKernelArg(kernel, 3, sizeof(cl_mem), &bvh_nodes.devBuffer()));
+  clErr(clSetKernelArg(kernel, 4, sizeof(uint), &nodes_used));
+  clErr(clSetKernelArg(kernel, 5, sizeof(cl_mem), &seeds.devBuffer()));
+  clErr(clSetKernelArg(kernel, 6, sizeof(uint), &maxDepth));
+  clErr(clSetKernelArg(kernel, 7, sizeof(cl_mem), &lambertians.devBuffer()));
+  clErr(clSetKernelArg(kernel, 8, sizeof(cl_mem), &metals.devBuffer()));
+  clErr(clSetKernelArg(kernel, 9, sizeof(cl_mem), &dielectrics.devBuffer()));
+  clErr(clSetKernelArg(kernel, 10, sizeof(Camera), &cam));
+
+  cl_event event;
+  std::array<size_t, 3> image_size{(std::size_t)image.width, (std::size_t)image.height, 1};
+  std::array<size_t, 3> zero_offset{0, 0, 0};
 
   std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth);
-  std::cout << fmt("#Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count());
+  std::cout << fmt("# Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count());
   std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
 
   auto start = high_resolution_clock::now();
   for (int i = 0 ; i < samplesPerPixel; i++) {
-    std::cout << "\rSample progress: " << ((float)i/(samplesPerPixel-1)) * 100 << "%" << std::flush;
-    clErr(queue.enqueueNDRangeKernel(kernel, zero_offset, image_size, cl::NullRange, NULL, &event));
-    event.wait();
+
+    auto current_time = duration_cast<milliseconds>(high_resolution_clock::now()-start);
+
+    // Specifying a local workgroup size doesn't seem to improve performance at all..
+    /* cl_int clEnqueueNDRangeKernel (	*/
+    /*     cl_command_queue command_queue,  */
+    /*     cl_kernel kernel, */
+    /*     cl_uint work_dim, */
+    /*     const size_t *global_work_offset, */
+    /*     const size_t *global_work_size, */
+    /*     const size_t *local_work_size, */
+    /*     cl_uint num_events_in_wait_list, */
+    /*     const cl_event *event_wait_list, */
+    /*     cl_event *event) */
+
+    clErr(clEnqueueNDRangeKernel(
+          queue,
+          kernel,
+          2,
+          zero_offset.data(),
+          image_size.data(),
+          NULL,
+          0,
+          NULL,
+          &event
+    ));
+    clWaitForEvents(1, &event);
+
+    auto percentage = ((i + 1.f)/samplesPerPixel) * 100.f;
+    std::cout << fmt("\r[%d ms] Sample progress: %.2f%%", current_time.count(), percentage) << std::flush;
   }
   auto end = high_resolution_clock::now();
   std::cout << "\rDone.                            \n";
   std::cout << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
   
-  pixelwise_divide.setArg(0, outputImage);
-  pixelwise_divide.setArg(1, (float)samplesPerPixel);
-  
-  clErr(queue.enqueueNDRangeKernel(pixelwise_divide, zero_offset, image_size));
-  
-  float* new_data = new float[imageWidth * imageHeight * 4];
-  queue.enqueueReadImage(outputImage, CL_TRUE, origin, region, 0, 0, new_data);
-  image.from_rgb_f32(new_data);
-#endif
+  image.read_from_device();
 
-  image.write("output.ppm", 1);
+  image.write_to_file("output.ppm", samplesPerPixel);
+  free(pool);
   
 	return EXIT_SUCCESS;
 }

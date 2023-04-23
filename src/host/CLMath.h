@@ -11,6 +11,7 @@ float3 operator*(float3 a, float t);
 float3 operator*(float t, float3 a);
 
 float3 operator/(float3 a, float t);
+float3 operator/(float t, float3 a);
 float3 operator-(float3 a);
 
 float length(float3 v);

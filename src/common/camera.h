@@ -55,7 +55,7 @@ SHARED_STRUCT_START(Camera) {
 #include "device/cl_util.cl"
 #include "device/ray.h"
 
-Ray camera_get_ray(const Camera* cam, float s, float t, uint2* seed) {
+Ray camera_get_ray(const Camera* cam, float s, float t, uint2* private seed) {
 		float3 rd = cam->lens_radius * random_in_unit_disk(seed);
 		float3 offset = cam->u * rd.x + cam->v * rd.y;
 

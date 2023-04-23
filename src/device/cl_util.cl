@@ -3,9 +3,8 @@
 
 #ifdef OPENCL
 // https://stackoverflow.com/a/16077942
-float random_float(uint2* seed) {
+float random_float(uint2* private  seed) {
 
-#ifdef OPENCL
 	const float invMaxInt = 1.0f/4294967296.0f;
 
 	uint x = (*seed).x * 17 + (*seed).y * 13123;
@@ -18,21 +17,17 @@ float random_float(uint2* seed) {
 		+ (x * (x * x * 11687 + 26461) + 137589);
 
 	return convert_float(tmp) * invMaxInt;
-#else
-	// TODO: Host side code if needed
-	return rand();
-#endif
 }
 
-float random_float_ranged(uint2* seed1, float min, float max) {
+float random_float_ranged(uint2* private  seed1, float min, float max) {
 	return min + (max-min) * random_float(seed1);
 }
 
-float3 random_float3(uint2* seed) {
+float3 random_float3(uint2* private  seed) {
 	return (float3){random_float(seed), random_float(seed), random_float(seed)};
 }
 
-float3 random_float3_ranged(uint2* seed, float min, float max) {
+float3 random_float3_ranged(uint2* private  seed, float min, float max) {
 	return (float3){
 		random_float_ranged(seed, min, max), 
 		random_float_ranged(seed, min, max), 
@@ -40,7 +35,7 @@ float3 random_float3_ranged(uint2* seed, float min, float max) {
 	};
 }
 
-float3 random_in_unit_sphere(uint2* seed) {
+float3 random_in_unit_sphere(uint2* private  seed) {
 	while(true) {
 		float3 p = random_float3_ranged(seed, -1, 1);
 		if(length(p) * length(p) >= 1) continue;
@@ -49,11 +44,11 @@ float3 random_in_unit_sphere(uint2* seed) {
 	}
 }
 
-float3 random_unit_vector(uint2* seed) {
+float3 random_unit_vector(uint2* private  seed) {
 	return normalize(random_in_unit_sphere(seed));
 }
 
-float3 random_in_hemisphere(float3 normal, uint2* seed) {
+float3 random_in_hemisphere(float3 normal, uint2* private  seed) {
 	float3 in_unit_sphere = random_in_unit_sphere(seed);
 
 	if(dot(normal, in_unit_sphere) > 0) {
@@ -63,7 +58,7 @@ float3 random_in_hemisphere(float3 normal, uint2* seed) {
 	}
 }
 
-float3  random_in_unit_disk(uint2* seed) {
+float3 random_in_unit_disk(uint2* private seed) {
 	while(true) {
 		float3 p = (float3){random_float_ranged(seed, -1, 1), random_float_ranged(seed, -1, 1), 0.0f};
 		if(length(p) * length(p) >= 1) continue;
@@ -74,11 +69,7 @@ float3  random_in_unit_disk(uint2* seed) {
 
 bool float3_near_zero(float3 v) {
 	const float s = 1e-8;
-#ifdef OPENCL
 	return( fabs(v.x) < s && fabs(v.y) < s && fabs(v.z) < s );
-#else
-	return( fabs(v.s[0]) < s && fabs(v.s[1]) < s && fabs(v.s[2]) < s );
-#endif
 }
 
 float3 float3_reflect(float3 v, float3 n) {
@@ -94,5 +85,9 @@ float3 float3_refract(float3 uv, float3 n, float etai_over_etat) {
     /* printf("%v3f, %v3f\n", r_out_perp, r_out_parallel); */
     return r_out_perp + r_out_parallel;
 }
+
+#define SWAP(a, b, type) \
+	{ type c = a; a = b; b = c; }
+
 #endif
 

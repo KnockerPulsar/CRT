@@ -1,4 +1,5 @@
 #include "host/Utils.h"
+#include "host/CLUtil.h"
 
 auto replaceAll(const std::string& source, std::string toBeReplaced, std::string replacement) -> std::string {
   int pos;

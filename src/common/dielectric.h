@@ -58,7 +58,7 @@ static float dielectric_reflectence(float cosine, float ref_idx) {
   return r0 + (1-r0) * pow((1-cosine), 5);
 }
 
-bool dielectric_scatter(Dielectric dielec, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* seed) {
+bool dielectric_scatter(Dielectric dielec, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* private  seed) {
   *attenuation = (float3){1, 1, 1};
 
   float refraction_ratio = rec->front_face? (1.0f/dielec.ir) : dielec.ir;

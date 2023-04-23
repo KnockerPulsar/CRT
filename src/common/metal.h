@@ -55,7 +55,7 @@ SHARED_STRUCT_START(Metal) {
 #include "device/hit_record.h"
 #include "device/cl_util.cl"
 
-bool metal_scatter(Metal* metal, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* seed) {
+bool metal_scatter(global Metal* metal, const Ray* r_in, const HitRecord* rec, float3* attenuation, Ray* scattered, uint2* private  seed) {
   float3 reflected = float3_reflect(normalize(r_in->d), rec->normal);
 
   *scattered = ray(rec->p, reflected + metal->fuzz * random_in_unit_sphere(seed));

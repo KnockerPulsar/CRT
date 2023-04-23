@@ -2,15 +2,13 @@
 
 #include "CLUtil.h"
 #include "host/CLErrors.h"
-#include <CL/cl.h>
-#include <CL/opencl.hpp>
 #include <cassert>
 #include <vector>
 
 template<class T> 
 class CLBuffer {
   public:
-    CLBuffer(cl::Context& ctx, cl::CommandQueue& q, cl_mem_flags flags = CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, int count = 10)
+    CLBuffer(cl_context& ctx, cl_command_queue& q, cl_mem_flags flags = CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, int count = 10)
       : hostBuffer(std::vector<T>()), queue(q), flags(flags)
     { 
       if(count > 0) {
@@ -19,8 +17,19 @@ class CLBuffer {
       }
     }
 
+    // https://stackoverflow.com/a/7278354
+    static CLBuffer<T> fromPtr(cl_context& ctx, cl_command_queue& q, T* ptr, const int ptr_size) {
+      CLBuffer<T> ret(ctx, q);
+
+      // Makes a copy of the given array (ptr)
+      std::vector<T> tempVec(ptr, ptr + ptr_size);
+      ret.hostBuffer.swap(tempVec);
+
+      return ret;
+    }
+
     // Takes ownership of the given vector's data data
-    static CLBuffer<T> fromVector(cl::Context& ctx, cl::CommandQueue& q, std::vector<T>& vec) {
+    static CLBuffer<T> fromVector(cl_context& ctx, cl_command_queue& q, std::vector<T>& vec) {
       CLBuffer<T> ret(ctx, q);
       ret.hostBuffer.swap(vec);
 
@@ -51,24 +60,24 @@ class CLBuffer {
       return hostBuffer.end();
     }
 
-    void uploadToDevice(cl::Context& ctx) {
-      assert(hostBuffer.data() != nullptr);
+    void uploadToDevice(cl_context& ctx) {
+      /* if(hostBuffer.data() == nullptr) return; */
 
       cl_int err;
-      deviceBuffer = cl::Buffer(ctx, flags | CL_MEM_COPY_HOST_PTR, hostBuffer.size() * sizeof(T), hostBuffer.data(), &err);
+      deviceBuffer = clCreateBuffer(ctx, flags | CL_MEM_COPY_HOST_PTR, hostBuffer.size() * sizeof(T), hostBuffer.data(), &err);
       clErr(err);
     }
 
     void readFromDevice() {
-      clErr(queue.enqueueReadBuffer(deviceBuffer, CL_TRUE, 0, hostBuffer.size() * sizeof(T), hostBuffer.data()));
+      clErr(clEnqueueReadBuffer(queue, deviceBuffer, CL_TRUE, 0, hostBuffer.size() * sizeof(T), hostBuffer.data(), 0, NULL, NULL));
     }
 
-    cl::Buffer devBuffer() { return deviceBuffer; }
-    int count() const { return hostBuffer.size(); }
+    const cl_mem& devBuffer() { return deviceBuffer; }
+    const size_t count() const { return hostBuffer.size(); }
 
   private:
     std::vector<T> hostBuffer;
-    cl::Buffer deviceBuffer;
-    cl::CommandQueue queue;
+    cl_mem deviceBuffer;
+    cl_command_queue queue;
     cl_mem_flags flags;
 };

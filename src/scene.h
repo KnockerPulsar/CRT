@@ -11,7 +11,6 @@
 #ifndef OPENCL
 #include <assert.h>
 #include "host/CLBuffer.h"
-#include <CL/opencl.hpp>
 #include <vector>
 #endif
 

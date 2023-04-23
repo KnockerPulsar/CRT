@@ -5,10 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_EXTENSIONS FALSE)
 
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall ")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -fmax-errors=2")
 # set(CMAKE_CXX_FLAGS "-Werror")
-
 
 set(SOURCES 
   src/host/CLUtil.cpp
@@ -27,7 +26,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE  ${PROJECT_SOURCE_DIR}/release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 
 link_directories(
-	/opt/rocm-5.4.3/lib/
+  /usr/local/lib/
 )
 
 add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})

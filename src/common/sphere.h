@@ -1,4 +1,5 @@
 #pragma once
+#include "common/aabb.h"
 #include "common/common_defs.h"
 #include "common/material_id.h"
 
@@ -11,20 +12,26 @@
 SHARED_STRUCT_START(Sphere) {
 	float3 center;
 	float radius;
+	AABB bbox;
 	MaterialId mat_id;
 
 #ifndef OPENCL
 	public:
 	class CLBuffer; friend CLBuffer;
+
 	inline static std::vector<Sphere> instances;
 
+	Sphere(float3 center, float radius, MaterialId id): center(center), radius(radius), mat_id(id) {
+		float3 rvec = f3(radius, radius, radius);
+		bbox = AABB(center - rvec, center + rvec);
+	}
+
 	static void addToScene(float3 center, float radius, MaterialId id) {
-		auto sphIter = std::find(instances.begin(), instances.end(), (Sphere){center, radius, id});
+		auto sphIter = std::find(instances.begin(), instances.end(), Sphere(center, radius, id));
 
 		if(sphIter == instances.end()) {
 			createAndPush(center, radius, id);
 		}
-
 	}
 
 	bool operator==(const Sphere& other) const {
@@ -47,7 +54,7 @@ SHARED_STRUCT_START(Sphere) {
 #include "device/interval.h"
 #include "device/ray.h"
 
-bool sphere_hit(Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
+bool sphere_hit(global Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
 	float3 oc = r->o - s->center;
 
 	float a = dot(r->d, r->d);

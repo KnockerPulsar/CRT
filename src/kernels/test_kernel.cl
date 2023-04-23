@@ -8,12 +8,13 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/camera.h"
+#include "common/bvh_node.h"
 
 #define MAX_DEPTH 64
 
 bool closest_hit(
 	Ray r,
-	Sphere* spheres,
+	global Sphere* spheres,
 	int sphere_count,
 	Interval ray_t,
 	HitRecord* rec
@@ -35,22 +36,41 @@ bool closest_hit(
 
 float3 ray_color(
 	Ray r,
-	Sphere* spheres,
+	global Sphere* spheres,
 	int sphere_count,
+
+	global BVHNode* bvh_nodes,
+	int bvh_size,
+
 	int max_depth,
 	uint2* seed,
-	Lambertian* lambertians,
-	Metal* metals,
-	Dielectric* dielectrics
+	global Lambertian* lambertians,
+	global Metal* metals,
+	global Dielectric* dielectrics
 ) {
-
 	max_depth = min(max_depth, MAX_DEPTH);
-
 	float3 attenuation = (float3)(1, 1, 1);
+	int failsafe = 0;
 
-	for(int i = 0; i < max_depth - 1; i++) {
+	for(int i = 0; i < max_depth - 1; i++, failsafe++) {
+		if(failsafe > 1000) return (float3)(1, 0, 1);
+
 		HitRecord rec;
-		if(closest_hit(r, spheres, sphere_count, interval(0.001f, infinity), &rec)) {
+#if 0
+		bool hit = closest_hit(r, spheres, sphere_count, interval(0.001f, infinity), &rec);
+#else
+		/* printf("%f %f %f %f %f %f\n",  */
+		/* 		bvh_nodes[0].bounds.x.min, */
+		/* 		bvh_nodes[0].bounds.x.max, */
+		/* 		bvh_nodes[0].bounds.y.min, */
+		/* 		bvh_nodes[0].bounds.y.max, */
+		/* 		bvh_nodes[0].bounds.z.min, */
+		/* 		bvh_nodes[0].bounds.z.max */
+		/* 	  ); */
+		bool hit = bvh_intersect(bvh_nodes, &r, interval(0.001f, infinity), &rec, spheres);
+
+#endif
+		if(hit) {
 			Ray scattered;
 			int mat_instance = rec.mat_id.material_instance;
 			int mat_type = rec.mat_id.material_type;
@@ -90,22 +110,31 @@ float3 ray_color(
 
 kernel void test_kernel(
 	read_write image2d_t input,
+
 	global Sphere* spheres, 
 	int sphere_count,
+
+	global BVHNode* bvh_nodes,
+	int bvh_size,
+
 	global uint2* seeds,
 	int max_depth,
+
 	global Lambertian* lambertians,
 	global Metal* metals,
 	global Dielectric* dielectrics,
+
 	Camera camera
 ) {
 	const uint width = get_image_width(input);
 	const uint height = get_image_height(input);
 	
 	float2 pos = {get_global_id(0), get_global_id(1)};
+
+	/* printf("%f %f\n", pos.x, pos.y); */
 	int thread_index = get_global_id(0) + width * get_global_id(1);
 	
-	private uint2 seed = seeds[thread_index];
+	uint2 seed = seeds[thread_index];
 
 	float du = (random_float(&seed) - 0.5) * 2;
 	float dv = (random_float(&seed) - 0.5) * 2;
@@ -116,7 +145,7 @@ kernel void test_kernel(
 	Ray r = camera_get_ray(&camera, u, v, &seed);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float3 pixel_color = ray_color(r, spheres, sphere_count, max_depth, &seed, lambertians, metals, dielectrics);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, bvh_nodes, bvh_size, max_depth, &seed, lambertians, metals, dielectrics);
 
 	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	

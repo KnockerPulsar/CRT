@@ -23,6 +23,7 @@ float3 operator-(float3 a) { return f3(-a.s[0], -a.s[1], -a.s[2], 0); }
 float3 operator*(float3 a, float t) { return FLOAT3_ELEMENTWISE_OP(a, f3(t, t, t, 0), *); }
 
 float3 operator/(float3 a, float t) { return FLOAT3_ELEMENTWISE_OP(a, f3(t, t, t, 1), /); }
+float3 operator/(float t, float3 a) { return FLOAT3_ELEMENTWISE_OP(a, f3(1/t, 1/t, 1/t, 1), /); }
 
 float3 operator*(float t, float3 a) { return a * t; }
 
