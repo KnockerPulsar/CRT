@@ -4,6 +4,8 @@
 #include "host/CLUtil.h"
 #include "host/CLBuffer.h"
 #include "host/Utils.h"
+#include <vector>
+#include <algorithm>
 #endif
 
 #include "common/common_defs.h"
@@ -16,7 +18,6 @@ SHARED_STRUCT_START(Metal) {
 
 #ifndef OPENCL
   public:
-  class CLBuffer; friend CLBuffer;
   inline static std::vector<Metal> instances;
 
   static MaterialId fromAlbedoFuzz(float3 albedo, float fuzz) {
@@ -24,14 +25,13 @@ SHARED_STRUCT_START(Metal) {
 
     if(metIter != instances.end()) {
       return metIter->id;
-    } else {
-      return createAndPush(albedo, fuzz).id;
-    }
+    }        
 
+    return createAndPush(albedo, fuzz).id;
   }
 
   bool operator==(const Metal& other) const {
-    return float3_equals(this->albedo, other.albedo) && this->fuzz == other.fuzz;
+    return float3Equals(this->albedo, other.albedo) && this->fuzz == other.fuzz;
   }
 
   private:

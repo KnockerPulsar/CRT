@@ -2,6 +2,8 @@
 
 #ifndef OPENCL
 #include "host/CLUtil.h"
+#include <vector>
+#include <algorithm>
 #endif
 
 
@@ -22,10 +24,9 @@ SHARED_STRUCT_START(Dielectric) {
 
     if(diIter != instances.end()) {
       return diIter->id;
-    } else {
-      return createAndPush(ir).id;
-    }
+    }        
 
+    return createAndPush(ir).id;
   }
 
   bool operator==(const Dielectric& other) const {

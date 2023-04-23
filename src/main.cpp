@@ -23,6 +23,8 @@
 #include "host/CLBuffer.h"
 #include "host/CLMath.h"
 #include "host/Random.h"
+#include "host/BVH.h"
+#include "host/CLKernel.h"
 
 #include "common/sphere.h"
 #include "common/camera.h"
@@ -30,7 +32,6 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/material_id.h"
-#include "common/bvh.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -51,26 +52,26 @@ void random_spheres(
 
   Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::fromAlbedo(f3(0.5, 0.5, 0.5)));
 #if 1
-  auto bounds = 11;
+  auto bounds = 10;
   for(int a = -bounds; a < bounds; a++) {
     for(int b = -bounds; b < bounds; b++) {
-        float choose_mat = random_float();
+        float choose_mat = randomFloat();
 
-        float3 center = f3(a + 0.9f * random_float(), random_float_ranged(0.2f, 0.6f), b + 0.9f * random_float());
+        float3 center = f3(a + 0.9f * randomFloat(), randomFloatRanged(0.2f, 0.6f), b + 0.9f * randomFloat());
 
         if(length(center - f3(4, 0.2, 0)) > 0.9) {
           if(choose_mat < 0.8) {
 
-            float3 albedo = random_float3() * random_float3();
+            float3 albedo = randomFloat3() * randomFloat3();
             Sphere::addToScene(center, 0.2, Lambertian::fromAlbedo(albedo));
 
           } else if (choose_mat < 0.95) {
-            float3 albedo = random_float3_ranged(0.5, 1);
-            float fuzz = random_float_ranged(0, 0.5);
+            float3 albedo = randomFloat3Ranged(0.5, 1);
+            float fuzz = randomFloatRanged(0, 0.5);
 
             Sphere::addToScene(center, 0.2, Metal::fromAlbedoFuzz(albedo, fuzz));
           } else {
-            Sphere::addToScene(center, 0.2, Dielectric::fromIR(random_float_ranged(1.0, 10)));
+            Sphere::addToScene(center, 0.2, Dielectric::fromIR(randomFloatRanged(1.0, 10)));
           }
       }
     }
@@ -80,26 +81,20 @@ void random_spheres(
   Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::fromIR(1.5));
   Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::fromAlbedoFuzz(f3(0.7, 0.6, 0.5), 0.0));
   Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::fromAlbedo(f3(0.4, 0.2, 0.1)));
-
-  Dielectric::fromIR(1.5f);
-  Metal::fromAlbedoFuzz(f3(1, 1, 1), 1);
-  Lambertian::fromAlbedo(f3(.8, .8, .8));
 }
 
-void parseInt(int& var, const std::string& name, char** argv, int& i) {
+void parseInt(int& var, const std::string& name, char* intStr) {
 #define BAD_ARG() \
-    std::cerr << fmt("Invalid value for the argument \"%s\" (%s). Aborting\n", name.c_str(), argv[i+1]); \
-    std::exit(EXIT_FAILURE);
+    std::cerr << fmt("Invalid value for the argument \"%s\" (%s). Aborting\n", name.c_str(), intStr); \
+    std::exit(EXIT_FAILURE)
 
   try {
-    var = std::stoi(argv[i+1]);
+    var = std::stoi(intStr);
   } catch(std::invalid_argument const& e) {
-    BAD_ARG()
+    BAD_ARG();
   }
 
-  if(var < 0) { BAD_ARG() }
-
-  i++;
+  if(var < 0) { BAD_ARG(); }
 }
 
 int main(int argc, char** argv) {
@@ -109,19 +104,27 @@ int main(int argc, char** argv) {
   int imageHeight = 1080;
   int samplesPerPixel = 1000;
   int maxDepth = 10;
+  std::string outputFileName = "output.ppm";
 
 #define STR_EQ(str1, str2) (std::strcmp((str1), (str2)) == 0)
 
   for(int i = 1; i < argc; i++) {
     if(STR_EQ(argv[i], "--samples")) {
-      parseInt(samplesPerPixel, "samples", argv, i);
+      parseInt(samplesPerPixel, "samples", argv[i+1]);
+      i += 1;
     } else if(STR_EQ(argv[i], "--max-depth")) {
-      parseInt(maxDepth, "max-depth", argv, i);
+      parseInt(maxDepth, "max-depth", argv[i+1]);
+      i += 1;
     }
     else if(STR_EQ(argv[i], "--image-width")) {
-      parseInt(imageWidth, "image-width", argv, i);
+      parseInt(imageWidth, "image-width", argv[i+1]);
+      i += 1;
     } else if(STR_EQ(argv[i], "--image-height")) {
-      parseInt(imageHeight, "image-height", argv, i);
+      parseInt(imageHeight, "image-height", argv[i+1]);
+      i+= 1;
+    } else if(STR_EQ(argv[i], "-o") || STR_EQ(argv[i], "--output")) {
+      outputFileName = std::string(argv[i+1]);
+      i+= 1;
     } else {
       int ret = EXIT_SUCCESS;
 
@@ -132,31 +135,27 @@ int main(int argc, char** argv) {
       }
 
       std::cerr << "Usage:\n"
-                << fmt("\t%s [--samples number] [--max-depth number] [--image-width number] [--image-height number]\n", argv[0]);
+                << fmt("\t%s [--samples number] [--max-depth number] [--image-width number] [--image-height number] [{--output , -o} filename (default: output.ppm)]\n", argv[0]);
 
       std::exit(ret);
     }
   }
 
-  Camera cam;
-	
   auto [context, queue, device] = setupCL();
 
   cl_kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
-
   std::uniform_int_distribution<uint> distribution(0, UINT32_MAX);
   std::mt19937 generator{42};
-
   for (int i = 0; i < imageWidth * imageHeight; i++) {
     uint a = distribution(generator);
     uint b = distribution(generator);
     seeds.push_back((cl_uint2){{a, b}});
   }
-
   seeds.uploadToDevice(context);
 
+  Camera cam;
   random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);
 
   BVH bvh = BVH(Sphere::instances);
@@ -171,41 +170,42 @@ int main(int argc, char** argv) {
   CLBuffer<Dielectric> dielectrics = CLBuffer<Dielectric>::fromVector(context, queue, Dielectric::instances);
 
   cam.initialize((float)(imageWidth) / imageHeight);
+
   spheres.uploadToDevice(context);
   bvh_nodes.uploadToDevice(context);
   lambertians.uploadToDevice(context);
   metals.uploadToDevice(context);
   dielectrics.uploadToDevice(context);
 
-  
-  kernel_parameters(kernel, 0, image.cl_image, spheres, spheres.count(), bvh_nodes, bvh_nodes.count(), seeds, maxDepth, lambertians, metals, dielectrics, cam);
+  kernelParameters(kernel, 0, image.clImage, spheres, spheres.count(), bvh_nodes, bvh_nodes.count(), seeds, maxDepth, lambertians, metals, dielectrics, cam);
 
   cl_event event;
-  std::array<size_t, 3> image_size{(std::size_t)image.width, (std::size_t)image.height, 1};
-  std::array<size_t, 3> zero_offset{0, 0, 0};
+  std::array<size_t, 2> image_size{(std::size_t)image.width, (std::size_t)image.height};
+  std::array<size_t, 2> zero_offset{0, 0};
+  std::array<size_t, 2> local_work_size{16, 16};
 
-  std::cout << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth);
-  std::cout << fmt("# Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count());
-  std::cout << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
+  std::cout << fmt("Output file name: %s\n", outputFileName.c_str())
+            << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth)
+            << fmt("# Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count())
+            << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
 
   auto start = high_resolution_clock::now();
   for (int i = 0 ; i < samplesPerPixel; i++) {
-
     auto current_time = duration_cast<milliseconds>(high_resolution_clock::now()-start);
 
     // Specifying a local workgroup size doesn't seem to improve performance at all..
-    clErr(clEnqueueNDRangeKernel(queue, kernel, 2, zero_offset.data(), image_size.data(), NULL, 0, NULL, &event));
-    clWaitForEvents(1, &event);
+    clErr(clEnqueueNDRangeKernel(queue, kernel, 2, zero_offset.data(), image_size.data(), local_work_size.data(), 0, NULL, &event));
+    clErr(clWaitForEvents(1, &event));
 
     auto percentage = ((i + 1.f)/samplesPerPixel) * 100.f;
     std::cout << fmt("\r[%d ms] Sample progress: %.2f%%", current_time.count(), percentage) << std::flush;
   }
   auto end = high_resolution_clock::now();
-  std::cout << "\rDone.                            \n";
-  std::cout << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
+  std::cout << "\rDone.                                        \n"
+            << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
   
   image.read_from_device();
-  image.write_to_file("output.ppm", samplesPerPixel);
+  image.write_to_file(outputFileName, samplesPerPixel);
   
 	return EXIT_SUCCESS;
 }

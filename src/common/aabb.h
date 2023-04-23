@@ -1,13 +1,11 @@
 #pragma once
 
-#include "common/common_defs.h"
-// TODO: move `interval` to `common`.
-#include "device/interval.h"
-
 #ifndef OPENCL
-#include "host/CLUtil.h"
 #include "host/CLMath.h"
 #endif
+
+#include "common/common_defs.h"
+#include "common/interval.h"
 
 SHARED_STRUCT_START(AABB) {
 	Interval x, y, z;
@@ -64,19 +62,21 @@ const Interval axis(global const AABB* aabb, int n) {
 	((idx == 0? vec.x : ((idx == 1)? vec.y : vec.z)))
 
 float aabb_hit(global const AABB* aabb, const Ray* r, Interval ray_t) {
-// https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
 #if 1
-    float tx1 = (aabb->x.min - r->o.x) / r->d.x, tx2 = (aabb->x.max - r->o.x) / r->d.x;
-    float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
+	// https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+	float tx1 = (aabb->x.min - r->o.x) / r->d.x, tx2 = (aabb->x.max - r->o.x) / r->d.x;
+	float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
 
-    float ty1 = (aabb->y.min - r->o.y) / r->d.y, ty2 = (aabb->y.max - r->o.y) / r->d.y;
-    tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
+	float ty1 = (aabb->y.min - r->o.y) / r->d.y, ty2 = (aabb->y.max - r->o.y) / r->d.y;
+	tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
 
-    float tz1 = (aabb->z.min - r->o.z) / r->d.z, tz2 = (aabb->z.max - r->o.z) / r->d.z;
-    tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
+	float tz1 = (aabb->z.min - r->o.z) / r->d.z, tz2 = (aabb->z.max - r->o.z) / r->d.z;
+	tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
 
-    if (tmax >= tmin && tmin < ray_t.max && tmax > 0) return tmin; else return infinity;
+	if (tmax >= tmin && tmin < ray_t.max && tmax > 0) return tmin; else return infinity;
 #else
+	// Adapted from "Raytracing in one weekend"
+	// A bit slower.
 	float tmin = ray_t.min, tmax = ray_t.max;
 	for (int a = 0; a < 3; a++) {
 		float inv_d = 1.0f / comp(r->d, a);

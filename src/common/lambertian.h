@@ -4,6 +4,7 @@
 #include "host/Utils.h"
 #include "host/CLUtil.h"
 #include <vector>
+#include <algorithm>
 #endif
 
 #include "common/material_id.h"
@@ -15,7 +16,6 @@ SHARED_STRUCT_START(Lambertian) {
 
 #ifndef OPENCL
   public:
-  class CLBuffer; friend CLBuffer;
   inline static std::vector<Lambertian> instances;
 
   static MaterialId fromAlbedo(float3 albedo) {
@@ -23,14 +23,13 @@ SHARED_STRUCT_START(Lambertian) {
 
     if(lambIter != instances.end()) {
       return lambIter->id;
-    } else {
-      return createAndPush(albedo).id;
-    }
+    }        
 
+    return createAndPush(albedo).id;
   }
 
   bool operator==(const Lambertian& other) const {
-    return float3_equals(this->albedo, other.albedo);
+    return float3Equals(this->albedo, other.albedo);
   }
 
   private:

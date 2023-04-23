@@ -2,9 +2,6 @@
 
 #ifdef OPENCL
 #include "cl_def.cl"
-#include "common/sphere.h"
-#include "device/interval.h"
-#include "device/hit_record.h"
 
 // https://stackoverflow.com/a/16077942
 float random_float(uint2* private  seed) {
@@ -93,6 +90,9 @@ float3 float3_refract(float3 uv, float3 n, float etai_over_etat) {
 #define SWAP(a, b, type) \
 	{ type c = a; a = b; b = c; }
 
+#include "common/sphere.h"
+#include "common/interval.h"
+#include "device/hit_record.h"
 bool closest_hit(
 	global Sphere* spheres,
 	int sphere_count,

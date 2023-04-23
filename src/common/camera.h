@@ -18,7 +18,6 @@ SHARED_STRUCT_START(Camera) {
 	float3 u, v, w;
 	float lens_radius;
 
-
 // C++ (host) code
 #ifndef OPENCL 
 	Camera() 
@@ -27,7 +26,7 @@ SHARED_STRUCT_START(Camera) {
 		{}
 
 	void initialize(float aspect_ratio) {
-			float theta = degrees_to_radians(vfov);
+			float theta = degreesToRadians(vfov);
 			float h = tan(theta/2);
 			float viewport_height = 2.0f * h;
 			float viewport_width = aspect_ratio * viewport_height; 
@@ -44,8 +43,6 @@ SHARED_STRUCT_START(Camera) {
 			lens_radius = aperature / 2;
 	}
 #endif
-
-
 } SHARED_STRUCT_END(Camera);
 
 

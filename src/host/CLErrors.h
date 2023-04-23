@@ -6,13 +6,13 @@
 #endif
 
 #ifndef CL_HPP_TARGET_OPENCL_VERSION 
-#define CL_HPP_TARGET_OPENCL_VERSION 220
+    #define CL_HPP_TARGET_OPENCL_VERSION 220
 #endif
 
 #ifdef USE_POCL
-#include "poclu.h"
+    #include "poclu.h"
 #else
-#include "CL/opencl.h"
+    #include "CL/opencl.h"
 #endif
 
 #include <cassert>
@@ -105,4 +105,3 @@ inline void checkErr(cl_int err, const char *name) {
 }
 
 #define clErr(err) checkErr(err, ("FILE: " + std::string(__FILE__) + ", LINE: " + std::to_string(__LINE__)).c_str())
-

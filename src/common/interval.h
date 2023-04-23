@@ -1,5 +1,6 @@
 #pragma once 
-#include "cl_def.cl"
+
+#include "device/cl_def.cl"
 
 typedef struct {
 	float min, max;

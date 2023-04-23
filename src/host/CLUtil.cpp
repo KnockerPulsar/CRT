@@ -1,7 +1,10 @@
 #include "host/CLUtil.h"
 #include "host/Utils.h"
 
+#include <CL/cl.h>
 #include <algorithm>
+#include <filesystem>
+#include <iomanip>
 #include <iterator>
 #include <optional>
 #include <ostream>
@@ -10,60 +13,77 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <filesystem>
-
-#include <assert.h>
 #include <cmath>
 #include <cstdlib>
+#include <functional>
 
 using std::string, std::cout, std::vector, std::cerr, std::endl, std::pair, std::make_pair, std::get;
 using devMip = pair<cl_device_id, int>;
 
-std::string getPlatformInfoStr(cl_platform_id& platform , cl_platform_info infoToGet) {
-  char str[128];
-  size_t ret_len = 0;
-  clErr(clGetPlatformInfo(platform, infoToGet, 128, str, &ret_len));
-  assert(ret_len < 128);
+// Type alias for the signature of `clGetDeviceInfo` and `clGetPlatformInfo`.
+template<typename T>
+using infoFn = std::function<cl_int(T platDev, int param_name, 
+    size_t param_value_size, void *param_value, size_t *param_value_size_ret)>;
 
-  return std::string(str);
+// Used to check if the passed template parameter is a vector.
+template<typename> struct is_std_vector : std::false_type {};
+template<typename T, typename A> struct is_std_vector<std::vector<T,A>> : std::true_type {};
+
+// For when you want to get an array of some type T from OpenCL.
+// Mosty used to get strings (`char[]`) and `size_t[]`.
+// fn is either `clGetDeviceInfo` or `clGetPlatformInfo`
+template<typename T, typename U>
+inline std::vector<T> getClArrInfo(U platDev, int infoToGet, infoFn<U> fn, uint defaultVecLen = 256) {
+  std::vector<T> tVec(defaultVecLen, T{});                                                            
+  size_t ret_len = 0;                                                                          
+
+  clErr(fn(platDev, infoToGet, tVec.size() * sizeof(T), tVec.data(), &ret_len));
+
+  assert(ret_len < (size_t)defaultVecLen);                                                                   
+  tVec.resize(ret_len);                                                                     
+  return tVec;
 }
 
-uint getPlatformInfoUint(cl_platform_id& platform , cl_platform_info infoToGet) {
-  uint ret;
-  size_t ret_len = 0;
-  clErr(clGetPlatformInfo(platform, infoToGet, 1, &ret, &ret_len));
-  assert(ret_len < 4);
+template<typename T, typename U> 
+T getClInfo(U platform_or_device, int infoToGet);
 
-  return ret;
+// Overload for OpenCL strings for platforms.
+template<>
+inline std::string getClInfo(cl_platform_id platform, int infoToGet) {
+   auto charVec = getClArrInfo<char, cl_platform_id>(platform, infoToGet, clGetPlatformInfo);
+   return std::string(charVec.begin(), charVec.end());
 }
 
-std::string getDeviceInfoStr(cl_device_id& device, cl_platform_info infoToGet) {
-  char str[1024];
-  size_t ret_len = 0;
-  clErr(clGetDeviceInfo(device, infoToGet, 1024, str, &ret_len));
-  assert(ret_len < 1024);
-
-  return std::string(str);
+// Overload for OpenCL strings for devices.
+template <> 
+inline std::string getClInfo(cl_device_id device, int infoToGet) {
+   auto charVec = getClArrInfo<char, cl_device_id>(device, infoToGet, clGetDeviceInfo);
+   return std::string(charVec.begin(), charVec.end());
 }
 
-uint getDeviceInfoUint(cl_device_id& device , cl_platform_info infoToGet) {
-  uint ret;
-  size_t ret_len = 0;
-  clErr(clGetDeviceInfo(device, infoToGet, sizeof(uint), &ret, &ret_len));
-  assert(ret_len < 16);
+// https://stackoverflow.com/a/14294277
+// Only enabled if the passed type is numeric.
+template<
+    typename T, //real type
+    typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+>
+inline T getClInfo(cl_device_id device, int infoToGet) {
+  T ret; size_t ret_len = 0;
+  clErr(clGetDeviceInfo(device, infoToGet, sizeof(T), &ret, &ret_len));
+  assert(ret_len <= 8);
 
   return ret;
 }
 
 auto computeRubbishMips(cl_device_id device) -> uint {
-    uint cus  = getDeviceInfoUint(device, CL_DEVICE_MAX_COMPUTE_UNITS);
-    uint freq = getDeviceInfoUint(device, CL_DEVICE_MAX_CLOCK_FREQUENCY);
+    uint cus  = getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS);
+    uint freq = getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY);
 
     return cus * freq;
 }
 
 auto getPlatformDevices(cl_platform_id& platform) -> vector<cl_device_id> {
-  vector<cl_device_id> platformDevices(4); 
+  vector<cl_device_id> platformDevices(4);  // Up to 4 devices.
   uint num_devices = 0;
   clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, platformDevices.size(), platformDevices.data(), &num_devices);
   platformDevices.resize(num_devices);
@@ -71,39 +91,44 @@ auto getPlatformDevices(cl_platform_id& platform) -> vector<cl_device_id> {
   return platformDevices;
 }
 
-auto printSize(const vector<uint>&& sizes) {
+auto getPlatforms() -> vector<cl_platform_id> {
+  const int maxPlatforms = 4;
+  vector<cl_platform_id> platforms(maxPlatforms);
+  cl_uint reported_num_platforms = 0;
+
+  clGetPlatformIDs(maxPlatforms, platforms.data(), &reported_num_platforms);
+  platforms.resize(reported_num_platforms);
+
+  return platforms;
+}
+
+template<typename T>
+auto printVector(const vector<T>&& sizes) {
   std::stringstream ss;
-  ss << "[ ";
-  for (const auto& item : sizes) {
-    ss << item << ", ";
-  }
-  ss << " ]";
+  ss << "[ "; for (const auto& item : sizes) { ss << item << ", "; } ss << " ]";
   return ss.str();
 }
 
 auto printDevice(cl_device_id& device) {
     uint mips = computeRubbishMips(device);
-    cout << "\tDevice name: " << getDeviceInfoStr(device, CL_DEVICE_NAME) << '\n';
-    cout << "\tDevice CUs: " <<  getDeviceInfoUint(device, CL_DEVICE_MAX_COMPUTE_UNITS) << '\n';
-    cout << "\tDevice max frequency: " <<  getDeviceInfoUint(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n';
-    cout << "\tDevice supports images: " <<  getDeviceInfoUint(device, CL_DEVICE_IMAGE_SUPPORT) << '\n';
-    /* cout << "\tDevice max workgroup size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_GROUP_SIZE)) << '\n'; */
-    /* cout << "\tDevice max workitem size: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_WORK_ITEM_SIZES)) << '\n'; */
-    /* cout << "\tDevice max constant parameters: " <<  printSize(getClInfo<vector<uint>>(device, CL_DEVICE_MAX_CONSTANT_ARGS)) << '\n'; */
-    cout << "\tDevice RubbishMIPs: " << mips << "\n\n";
+    cout 
+      << "\tDevice name: " << getClInfo<std::string>(device, CL_DEVICE_NAME) << '\n'
+      << "\tDevice CUs: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_COMPUTE_UNITS) << '\n'
+      << "\tDevice max frequency: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CLOCK_FREQUENCY) << '\n'
+      << "\tDevice supports images: " <<  getClInfo<uint>(device, CL_DEVICE_IMAGE_SUPPORT) << '\n'
+      << "\tDevice max workgroup size: " <<  getClInfo<size_t>(device, CL_DEVICE_MAX_WORK_GROUP_SIZE) << '\n'
+      << "\tDevice max workitem size: " <<  printVector(getClArrInfo<size_t, cl_device_id>(device, CL_DEVICE_MAX_WORK_ITEM_SIZES, clGetDeviceInfo)) << '\n'
+      << "\tDevice max constant parameters: " <<  getClInfo<uint>(device, CL_DEVICE_MAX_CONSTANT_ARGS) << '\n'
+      << "\tDevice RubbishMIPs: " << mips << "\n\n";
 }
 
 auto getDevicesAndMips() -> vector<devMip> {
-  vector<cl_platform_id> platforms(4);
-
-  cl_uint num_platforms = 0;
-  clGetPlatformIDs(4, platforms.data(), &num_platforms);
-  platforms.resize(num_platforms);
+  auto platforms = getPlatforms();
 
   vector<devMip> devicesAndMips;
 
   for(auto& platform : platforms) {
-    cout << "\nPlatform name: " << getPlatformInfoStr(platform, CL_PLATFORM_NAME) << "\n" << std::flush;
+    cout << "\nPlatform name: " << getClInfo<std::string>(platform, CL_PLATFORM_NAME) << "\n" << std::flush;
     /* string ext = getClInfo<string>(platform, CL_PLATFORM_EXTENSIONS);  */
     /* cout << "\nPlatform extensions: " << ext << "\n"; */
 
@@ -126,23 +151,15 @@ auto setupCL() -> std::tuple<cl_context, cl_command_queue, cl_device_id> {
         return get<1>(a) < get<1>(b);
       } 
   );
-
   assert(maxElementIter != devicesAndMips.end() && "No OpenCL devices found");
+
   cl_device_id device = std::get<0>(*maxElementIter);
 
-/* extern cl_int clGetDeviceInfo(cl_device_id device, cl_device_info param_name, */
-/*                               size_t param_value_size, void *param_value, */
-/*                               size_t *param_value_size_ret) */
-
-  char deviceName[128];
-  size_t returnedNameLength = 0;
-  clGetDeviceInfo(device, CL_DEVICE_NAME, 128, deviceName, &returnedNameLength);
-  cout << fmt("Using device: \"%s\"\n", deviceName);
+  auto deviceName = getClInfo<std::string>(device, CL_DEVICE_NAME);
+  cout << fmt("Using device: \"%s\"\n", deviceName.c_str());
 
   cl_int err;
-  auto context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
-
-
+  cl_context context = clCreateContext(NULL, 1, &device, NULL, NULL, &err);
   cl_command_queue queue = clCreateCommandQueueWithProperties(context, device, NULL, &err);
   clErr(err);
 
@@ -157,8 +174,7 @@ auto loadKernel(string path) -> string {
     std::abort();
   }
 
-  string kernelSource = string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-  return kernelSource;
+  return string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
 auto buildClCompileFlags(const vector<string>& includes) -> string {
@@ -167,8 +183,6 @@ auto buildClCompileFlags(const vector<string>& includes) -> string {
   s << "-DOPENCL -cl-std=CL2.0";
 
 #ifdef DEBUG
-  const std::string debugFlags = " -g ";
-  std::cout << "Building kernels with debug flags (" << debugFlags << ")\n";
   s << debugFlags;
 #else
   s << " -cl-fast-relaxed-math ";
@@ -205,7 +219,7 @@ auto buildProgram(
     cerr << fmt("Error building program for kernel: \"%s\"\n", kernelFile.c_str());
 
     // Get the build log
-    string name = getDeviceInfoStr(device, CL_DEVICE_NAME);
+    std::string name = getClInfo<std::string>(device, CL_DEVICE_NAME);
 
     char str[8192];
     size_t ret_len = 0;
@@ -227,8 +241,7 @@ auto kernelFromFile(
     std::vector<std::string> includes
 ) -> cl_kernel
 {
-  auto test_program = buildProgram(kernelPath, context, device, includes);
-  
+  cl_program test_program = buildProgram(kernelPath, context, device, includes);
 
   std::filesystem::path filepath(kernelPath);
   

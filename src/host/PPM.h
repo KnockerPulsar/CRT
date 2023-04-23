@@ -1,5 +1,8 @@
+#include <filesystem>
 #include <math.h>
 #include <stdio.h>
+#include <array>
+#include <algorithm>
 
 #include "host/CLUtil.h"
 #include "host/Utils.h"
@@ -12,18 +15,17 @@
  */
 class PPMImage {
 	public:
-		cl_mem cl_image;
+		cl_mem clImage;
 		const int width, height;
 	
 	private:
 		cl_command_queue queue;
-		cl_context context;
 
 		float* data;
 
 	public:
 		PPMImage(cl_command_queue& queue, cl_context& context, int w, int h, float3 color) : 
-			width(w), height(h), queue(queue), context(context)
+			width(w), height(h), queue(queue)
 		{
 
 			cl_int err;
@@ -42,7 +44,7 @@ class PPMImage {
 			desc.num_samples = 0;
 			desc.buffer = NULL;
 
-			this->cl_image = clCreateImage(context, CL_MEM_READ_WRITE, &format, &desc, nullptr, &err);
+			this->clImage = clCreateImage(context, CL_MEM_READ_WRITE, &format, &desc, nullptr, &err);
 			clErr(err);
 
 			// OpenCL doesn't support RGB + Floats
@@ -57,32 +59,32 @@ class PPMImage {
 		}
 
 		static PPMImage magenta(cl_command_queue& queue, cl_context& context, int w, int h) {
-			return PPMImage(queue, context, w, h, (float3){1, 0, 1});
+			return PPMImage(queue, context, w, h, f3(1, 0, 1));
 		}
 
 		static PPMImage black(cl_command_queue& queue, cl_context& context, int w, int h) {
-			return PPMImage(queue, context, w, h, (float3){0});
+			return PPMImage(queue, context, w, h, f3(0.0f));
 		}
 
 		void write_to_device() const {
 			const std::array<size_t, 3> origin = {0, 0, 0};
 			const std::array<size_t, 3> region = {(size_t)this->width, (size_t)this->height, 1};
 			
-			clErr(clEnqueueWriteImage(this->queue, this->cl_image, CL_TRUE, origin.data(), region.data(), 0, 0, (void*)this->data, 0, NULL, NULL));
+			clErr(clEnqueueWriteImage(this->queue, this->clImage, CL_TRUE, origin.data(), region.data(), 0, 0, (void*)this->data, 0, NULL, NULL));
 		}
 
 		void read_from_device() {
 			const std::array<size_t, 3> origin = {0, 0, 0};
 			const std::array<size_t, 3> region = {(size_t)this->width, (size_t)this->height, 1};
 			
-			clErr(clEnqueueReadImage(this->queue, this->cl_image, CL_TRUE, origin.data(), region.data(), 0, 0, this->data, 0, NULL, NULL));
+			clErr(clEnqueueReadImage(this->queue, this->clImage, CL_TRUE, origin.data(), region.data(), 0, 0, this->data, 0, NULL, NULL));
 		}
 
-		void write_to_file(const char* path, int samples_per_pixel) const {
-			FILE* f = fopen(path, "w");
+		void write_to_file(const std::filesystem::path path, int samples_per_pixel) const {
+			FILE* f = fopen(path.c_str(), "w");
 
 			if(f == NULL) {
-				fprintf(stderr, "Failed to open file at %s for writing", path);
+				fprintf(stderr, "Failed to open file at %s for writing", path.c_str());
 				return;
 			}
 
@@ -113,7 +115,7 @@ class PPMImage {
 
 			fclose(f);
 
-			printf("Image successfully written at %s\n", path);
+			printf("Image successfully written at %s\n", path.c_str());
 		}
 
 		void write_pixel_rgb_f32(int x, int y, float r, float g, float b) {
@@ -123,7 +125,7 @@ class PPMImage {
 			data[index + 2] = b;
 		}
 
-		void from_rgb_f32(float* new_data) {
+		void from_rgb_f32(const float* new_data) {
 			for (int y = 0; y < height; y++) {
 				for (int x = 0; x < width; x++) {
 					int index = (y * width + x) * RGBA_STRIDE;

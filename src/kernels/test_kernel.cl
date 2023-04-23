@@ -1,17 +1,16 @@
 #include "device/hit_record.h"
 #include "device/ray.h"
-#include "device/interval.h"
 #include "device/cl_util.cl"
 
+#include "common/interval.h"
 #include "common/sphere.h"
 #include "common/lambertian.h"
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/camera.h"
-#include "common/bvh.h"
+#include "common/bvh_node.h"
 
 #define MAX_DEPTH 64
-
 
 float3 ray_color(
 	Ray r,
@@ -29,14 +28,12 @@ float3 ray_color(
 ) {
 	max_depth = min(max_depth, MAX_DEPTH);
 	float3 attenuation = (float3)(1, 1, 1);
-	int failsafe = 0;
 
-	for(int i = 0; i < max_depth - 1; i++, failsafe++) {
-		if(failsafe > 1000) return (float3)(1, 0, 1);
+	for(int i = 0; i < max_depth - 1; i++) {
 
 		HitRecord rec;
 		Interval ray_t = interval(0.001f, infinity);
-#if 1
+#if 0
 		bool hit = closest_hit(spheres, sphere_count, r, &ray_t, &rec);
 #else
 		bool hit = bvh_intersect(bvh_nodes, spheres, &r, &ray_t, &rec);
@@ -67,11 +64,9 @@ float3 ray_color(
 
 			r = scattered;
 			attenuation *= color;
-
 		} else {
 			float3 unit_direction = normalize(r.d);
 			float a = 0.5 * (unit_direction.y + 1.0);
-	
 			attenuation *= ((1.0f-a) * (float3)(1, 1, 1) + a * (float3)(0.5, 0.7, 1.0));
 			break;
 		} 	

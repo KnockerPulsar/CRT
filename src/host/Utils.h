@@ -22,6 +22,6 @@ std::string fmt( const std::string& format, Args ... args )
 // https://stackoverflow.com/a/10031155
 auto replaceAll(const std::string& source, std::string toBeReplaced, std::string replacement) -> std::string;
 
-auto float3_equals(float3 a, float3 b) -> bool;
+auto float3Equals(float3 a, float3 b) -> bool;
 
-auto material_id_equals(MaterialId a, MaterialId b) -> bool;
+auto materialIdEquals(MaterialId a, MaterialId b) -> bool;

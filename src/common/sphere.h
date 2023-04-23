@@ -2,10 +2,12 @@
 #include "common/aabb.h"
 #include "common/common_defs.h"
 #include "common/material_id.h"
+#include "common/interval.h"
 
 #ifndef OPENCL
 #include "host/CLUtil.h"
 #include "host/Utils.h"
+#include <algorithm>
 #endif
 
 
@@ -35,9 +37,9 @@ SHARED_STRUCT_START(Sphere) {
 	}
 
 	bool operator==(const Sphere& other) const {
-		return float3_equals(this->center, other.center) 
+		return float3Equals(this->center, other.center) 
 			&& this->radius == other.radius 
-			&& material_id_equals(this->mat_id, other.mat_id);
+			&& materialIdEquals(this->mat_id, other.mat_id);
 	}
 
 	private:
@@ -51,7 +53,6 @@ SHARED_STRUCT_START(Sphere) {
 
 #ifdef OPENCL
 #include "device/hit_record.h"
-#include "device/interval.h"
 #include "device/ray.h"
 
 bool sphere_hit(global Sphere* s, const Ray* r, const Interval* ray_t, HitRecord* rec) {
