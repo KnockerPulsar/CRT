@@ -54,7 +54,7 @@ SHARED_STRUCT_START(Sphere) {
 #include "device/interval.h"
 #include "device/ray.h"
 
-bool sphere_hit(global Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) {
+bool sphere_hit(global Sphere* s, const Ray* r, const Interval* ray_t, HitRecord* rec) {
 	float3 oc = r->o - s->center;
 
 	float a = dot(r->d, r->d);
@@ -67,9 +67,9 @@ bool sphere_hit(global Sphere* s, const Ray* r, Interval ray_t, HitRecord* rec) 
 	float sqrtd = sqrt(discriminant);
 	float root = (-half_b - sqrtd) / a;
 	
-	if(!interval_contains(&ray_t, root)) {
+	if(!interval_contains(ray_t, root)) {
 		root = (-half_b + sqrtd) / a;
-		if(!interval_contains(&ray_t, root)) {
+		if(!interval_contains(ray_t, root)) {
 			return false;
 		}
 	}

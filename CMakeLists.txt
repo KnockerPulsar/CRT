@@ -6,7 +6,7 @@ set(CMAKE_CXX_EXTENSIONS FALSE)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall ")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -fmax-errors=2")
-# set(CMAKE_CXX_FLAGS "-Werror")
+set(CMAKE_CXX_FLAGS "")
 
 # Enable to use POCL (usually for debugging with GDB)
 # add_compile_definitions(USE_POCL)

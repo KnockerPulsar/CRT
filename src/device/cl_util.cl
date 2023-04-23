@@ -1,7 +1,11 @@
 #pragma once
-#include "cl_def.cl"
 
 #ifdef OPENCL
+#include "cl_def.cl"
+#include "common/sphere.h"
+#include "device/interval.h"
+#include "device/hit_record.h"
+
 // https://stackoverflow.com/a/16077942
 float random_float(uint2* private  seed) {
 
@@ -89,5 +93,25 @@ float3 float3_refract(float3 uv, float3 n, float etai_over_etat) {
 #define SWAP(a, b, type) \
 	{ type c = a; a = b; b = c; }
 
+bool closest_hit(
+	global Sphere* spheres,
+	int sphere_count,
+	Ray r,
+	Interval* ray_t,
+	HitRecord* rec
+) {
+	HitRecord temp_rec;
+	bool hit_anything = false;
+
+	for(int i = 0; i < sphere_count; i++) {
+		if(sphere_hit(&spheres[i], &r, ray_t, &temp_rec)) {
+			hit_anything = true;
+			ray_t->max = min(ray_t->max, temp_rec.t);
+			*rec = temp_rec;
+		}	
+	}
+
+	return hit_anything;
+}
 #endif
 

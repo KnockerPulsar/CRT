@@ -74,7 +74,7 @@ auto getPlatformDevices(cl_platform_id& platform) -> vector<cl_device_id> {
 auto printSize(const vector<uint>&& sizes) {
   std::stringstream ss;
   ss << "[ ";
-  for (auto& item : sizes) {
+  for (const auto& item : sizes) {
     ss << item << ", ";
   }
   ss << " ]";
@@ -164,8 +164,15 @@ auto loadKernel(string path) -> string {
 auto buildClCompileFlags(const vector<string>& includes) -> string {
   std::stringstream s;
 
-  /* s << "-DOPENCL -cl-std=CL2.0 -g -cl-opt-disable "; */
-  s << "-DOPENCL -cl-std=CL2.0 -cl-fast-relaxed-math ";
+  s << "-DOPENCL -cl-std=CL2.0";
+
+#ifdef DEBUG
+  const std::string debugFlags = " -g ";
+  std::cout << "Building kernels with debug flags (" << debugFlags << ")\n";
+  s << debugFlags;
+#else
+  s << " -cl-fast-relaxed-math ";
+#endif
 
   for (const auto& include : includes) {
     s << fmt("-I%s ", include.c_str());

@@ -1,9 +1,10 @@
 #pragma once
 
-#include "device/ray.h"
-#include "device/cl_util.cl"
 #include "common/material_id.h"
 
+#ifdef OPENCL
+
+#include "device/ray.h"
 typedef struct {
 	float3 p;
 	float3 normal;
@@ -17,3 +18,4 @@ void set_face_normal(HitRecord* hr, const Ray* r, const float3 outward_normal) {
 	hr->normal = hr->front_face? outward_normal: -outward_normal;
 }
 
+#endif

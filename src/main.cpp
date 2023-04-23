@@ -14,6 +14,7 @@
 #include <string>
 #include <iomanip>
 #include <vector>
+#include <array>
 #include <utility>
 #include <chrono>
 
@@ -29,7 +30,7 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/material_id.h"
-#include "common/bvh_node.h"
+#include "common/bvh.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -85,17 +86,6 @@ void random_spheres(
   Lambertian::fromAlbedo(f3(.8, .8, .8));
 }
 
-/*
- * for each sample:
- *    for each bounce:
- *      list geometry_hits; int counter;
- *      test_geometry(input_rays, spheres, max_bounces, geometry_hits, counter);
- *
- *      for hit in geometry_hits:
- *        list output_rays;
- *        scatter(materials, image, output_rays)
- */
-
 void parseInt(int& var, const std::string& name, char** argv, int& i) {
 #define BAD_ARG() \
     std::cerr << fmt("Invalid value for the argument \"%s\" (%s). Aborting\n", name.c_str(), argv[i+1]); \
@@ -120,21 +110,31 @@ int main(int argc, char** argv) {
   int samplesPerPixel = 1000;
   int maxDepth = 10;
 
+#define STR_EQ(str1, str2) (std::strcmp((str1), (str2)) == 0)
+
   for(int i = 1; i < argc; i++) {
-    if(std::strcmp(argv[i], "--samples") == 0) {
+    if(STR_EQ(argv[i], "--samples")) {
       parseInt(samplesPerPixel, "samples", argv, i);
-    } else if(std::strcmp(argv[i], "--max-depth") == 0) {
+    } else if(STR_EQ(argv[i], "--max-depth")) {
       parseInt(maxDepth, "max-depth", argv, i);
     }
-    else if(std::strcmp(argv[i], "--image-width") == 0) {
+    else if(STR_EQ(argv[i], "--image-width")) {
       parseInt(imageWidth, "image-width", argv, i);
-    } else if(std::strcmp(argv[i], "--image-height") == 0) {
+    } else if(STR_EQ(argv[i], "--image-height")) {
       parseInt(imageHeight, "image-height", argv, i);
     } else {
-      std::cerr << fmt("Unrecognized option: '%s'.", argv[i]);
-      std::cerr << "Usage:\n";
-      std::cerr << "\tCRT [--samples number] [--max-depth number] [--image-width number] [--image-height number]\n";
-      std::exit(EXIT_FAILURE);
+      int ret = EXIT_SUCCESS;
+
+      // Arguments other than "--help" should indicate an error.
+      if(!STR_EQ(argv[i], "--help")) {
+        std::cerr << fmt("Unrecognized option: '%s'.\n", argv[i]);
+        ret = EXIT_FAILURE;
+      }
+
+      std::cerr << "Usage:\n"
+                << fmt("\t%s [--samples number] [--max-depth number] [--image-width number] [--image-height number]\n", argv[0]);
+
+      std::exit(ret);
     }
   }
 
@@ -142,7 +142,6 @@ int main(int argc, char** argv) {
 	
   auto [context, queue, device] = setupCL();
 
-  cl_kernel pixelwise_divide = kernelFromFile("src/kernels/pixelwise_divide.cl", context, device);
   cl_kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
   
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
@@ -160,16 +159,13 @@ int main(int argc, char** argv) {
 
   random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);
 
-  int root_node_index = 0;
-  int nodes_used = 0;
-  BVHNode* pool = nullptr;
-  BVHNode bvh = BVHNode(Sphere::instances, root_node_index, nodes_used, &pool);
+  BVH bvh = BVH(Sphere::instances);
 
   auto image  = PPMImage::black(queue, context, imageWidth, imageHeight);
   image.write_to_device();
 
   CLBuffer<Sphere> spheres = CLBuffer<Sphere>::fromVector(context, queue, Sphere::instances); 
-  CLBuffer<BVHNode> bvh_nodes = CLBuffer<BVHNode>::fromPtr(context, queue, pool, nodes_used);
+  CLBuffer<BVHNode> bvh_nodes = CLBuffer<BVHNode>::fromPtr(context, queue, bvh.getPool(), bvh.getNodesUsed());
   CLBuffer<Lambertian> lambertians = CLBuffer<Lambertian>::fromVector(context, queue, Lambertian::instances);
   CLBuffer<Metal> metals = CLBuffer<Metal>::fromVector(context, queue, Metal::instances);
   CLBuffer<Dielectric> dielectrics = CLBuffer<Dielectric>::fromVector(context, queue, Dielectric::instances);
@@ -181,9 +177,8 @@ int main(int argc, char** argv) {
   metals.uploadToDevice(context);
   dielectrics.uploadToDevice(context);
 
-
-  uint spheres_count = spheres.count();
-  kernel_parameters(kernel, 0, image.cl_image, spheres, spheres_count, bvh_nodes, nodes_used, seeds, maxDepth, lambertians, metals, dielectrics, cam);
+  
+  kernel_parameters(kernel, 0, image.cl_image, spheres, spheres.count(), bvh_nodes, bvh_nodes.count(), seeds, maxDepth, lambertians, metals, dielectrics, cam);
 
   cl_event event;
   std::array<size_t, 3> image_size{(std::size_t)image.width, (std::size_t)image.height, 1};
@@ -199,28 +194,7 @@ int main(int argc, char** argv) {
     auto current_time = duration_cast<milliseconds>(high_resolution_clock::now()-start);
 
     // Specifying a local workgroup size doesn't seem to improve performance at all..
-    /* cl_int clEnqueueNDRangeKernel (	*/
-    /*     cl_command_queue command_queue,  */
-    /*     cl_kernel kernel, */
-    /*     cl_uint work_dim, */
-    /*     const size_t *global_work_offset, */
-    /*     const size_t *global_work_size, */
-    /*     const size_t *local_work_size, */
-    /*     cl_uint num_events_in_wait_list, */
-    /*     const cl_event *event_wait_list, */
-    /*     cl_event *event) */
-
-    clErr(clEnqueueNDRangeKernel(
-          queue,
-          kernel,
-          2,
-          zero_offset.data(),
-          image_size.data(),
-          NULL,
-          0,
-          NULL,
-          &event
-    ));
+    clErr(clEnqueueNDRangeKernel(queue, kernel, 2, zero_offset.data(), image_size.data(), NULL, 0, NULL, &event));
     clWaitForEvents(1, &event);
 
     auto percentage = ((i + 1.f)/samplesPerPixel) * 100.f;
@@ -231,9 +205,7 @@ int main(int argc, char** argv) {
   std::cout << fmt("Raytracing done in %d ms\n", duration_cast<milliseconds>(end-start));
   
   image.read_from_device();
-
   image.write_to_file("output.ppm", samplesPerPixel);
-  free(pool);
   
 	return EXIT_SUCCESS;
 }

@@ -8,31 +8,10 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/camera.h"
-#include "common/bvh_node.h"
+#include "common/bvh.h"
 
 #define MAX_DEPTH 64
 
-bool closest_hit(
-	Ray r,
-	global Sphere* spheres,
-	int sphere_count,
-	Interval ray_t,
-	HitRecord* rec
-) {
-	HitRecord temp_rec;
-	bool hit_anything = false;
-	float closest_so_far = ray_t.max;
-
-	for(int i = 0; i < sphere_count; i++) {
-		if(sphere_hit(&spheres[i], &r, ray_t, &temp_rec)) {
-			hit_anything = true;
-			ray_t.max = temp_rec.t;
-			*rec = temp_rec;
-		}	
-	}
-
-	return hit_anything;
-}
 
 float3 ray_color(
 	Ray r,
@@ -56,20 +35,13 @@ float3 ray_color(
 		if(failsafe > 1000) return (float3)(1, 0, 1);
 
 		HitRecord rec;
-#if 0
-		bool hit = closest_hit(r, spheres, sphere_count, interval(0.001f, infinity), &rec);
+		Interval ray_t = interval(0.001f, infinity);
+#if 1
+		bool hit = closest_hit(spheres, sphere_count, r, &ray_t, &rec);
 #else
-		/* printf("%f %f %f %f %f %f\n",  */
-		/* 		bvh_nodes[0].bounds.x.min, */
-		/* 		bvh_nodes[0].bounds.x.max, */
-		/* 		bvh_nodes[0].bounds.y.min, */
-		/* 		bvh_nodes[0].bounds.y.max, */
-		/* 		bvh_nodes[0].bounds.z.min, */
-		/* 		bvh_nodes[0].bounds.z.max */
-		/* 	  ); */
-		bool hit = bvh_intersect(bvh_nodes, &r, interval(0.001f, infinity), &rec, spheres);
-
+		bool hit = bvh_intersect(bvh_nodes, spheres, &r, &ray_t, &rec);
 #endif
+
 		if(hit) {
 			Ray scattered;
 			int mat_instance = rec.mat_id.material_instance;
@@ -115,7 +87,7 @@ kernel void test_kernel(
 	int sphere_count,
 
 	global BVHNode* bvh_nodes,
-	int bvh_size,
+	uint bvh_size,
 
 	global uint2* seeds,
 	int max_depth,

@@ -73,11 +73,18 @@ class CLBuffer {
     }
 
     const cl_mem& devBuffer() const { return deviceBuffer; }
-    const size_t count() const { return hostBuffer.size(); }
+    const uint& count() { element_count = hostBuffer.size(); return element_count; }
 
   private:
     std::vector<T> hostBuffer;
     cl_mem deviceBuffer;
     cl_command_queue queue;
     cl_mem_flags flags;
+
+    // Needed since OpenCL needs to have the address of an existing variable for
+    // uploading the data. (i.e the variable needs to outlive the kernel call).
+    // If we pass the return of `vector::size()`, that gets destroyed before
+    // calling the kernel (since its a temporary rvalue), causing the pointer we
+    // passed to the runtime to point at invalid memory, hence the errors.
+    uint element_count = 0;
 };
