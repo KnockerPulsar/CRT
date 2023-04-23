@@ -11,7 +11,8 @@ SHARED_STRUCT_START(AABB) {
 	Interval x, y, z;
 
 #ifndef OPENCL
-	AABB() {}
+	AABB(): x(interval_empty()), y(interval_empty()), z(interval_empty()) {}
+
 	AABB(const Interval& ix, const Interval& iy, const Interval& iz): 
 		x(ix), y(iy), z(iz) {}
 
@@ -27,7 +28,7 @@ SHARED_STRUCT_START(AABB) {
 		return x; 
 	}
 
-	void updateBounds(const AABB& other) {
+	void grow(const AABB& other) {
 			x.min = fminf(x.min, other.x.min);
 			x.max = fmaxf(x.max, other.x.max);
 
@@ -44,6 +45,13 @@ SHARED_STRUCT_START(AABB) {
 				y.max - y.min,
 				z.max - z.min
 				);
+	}
+
+	float area() const {
+		float3 a = getExtent();
+		return a.s[0] * a.s[1] 
+					+ a.s[1] * a.s[2] 
+					+ a.s[2] * a.s[0];
 	}
 #endif
 } SHARED_STRUCT_END(AABB);

@@ -158,6 +158,7 @@ int main(int argc, char** argv) {
   Camera cam;
   random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);
 
+  // SAH doesn't really help with spheres.
   BVH bvh = BVH(Sphere::instances);
 
   auto image  = PPMImage::black(queue, context, imageWidth, imageHeight);

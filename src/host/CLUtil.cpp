@@ -183,7 +183,7 @@ auto buildClCompileFlags(const vector<string>& includes) -> string {
   s << "-DOPENCL -cl-std=CL2.0";
 
 #ifdef DEBUG
-  s << debugFlags;
+  s << " -g ";
 #else
   s << " -cl-fast-relaxed-math ";
 #endif

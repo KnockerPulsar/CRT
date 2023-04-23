@@ -47,26 +47,62 @@ class BVH {
 			for(uint first = node.left_first, offset = 0; offset < node.sphere_count; offset++) {
 				const AABB& sb = spheres[first + offset].bbox;
 				AABB& nb = node.bounds;	
-				nb.updateBounds(sb);
+				nb.grow(sb);
 			}
+		}
+	
+		float evaluateSAH(BVHNode& node, int axis, float pos) {
+			AABB leftBox, rightBox;
+			int leftCount = 0, rightCount = 0;
+			for(uint offset = 0; offset < node.sphere_count; offset++) {
+				Sphere& s = spheres[node.left_first + offset];
+				if(s.center.s[axis] < pos) {
+					leftCount++;
+					leftBox.grow(s.bbox);
+				} else {
+					rightCount++;
+					rightBox.grow(s.bbox);
+				}
+			}
+			float cost = leftCount * leftBox.area() + rightCount * rightBox.area();
+			return cost > 0 ? cost: infinity;
 		}
 
 		void subdivide(int node_index) {
 			BVHNode& node = pool[node_index];
 
+#if 0
 			if(node.sphere_count <= 4) return;
-
 			float3 extent = node.bounds.getExtent();
 
 			int axis = 0;
 			if(extent.s[1] > extent.s[0]) axis = 1;
 			if(extent.s[2] > extent.s[axis]) axis = 2;
-			float split_position = node.bounds.axis(axis).min + extent.s[axis] * 0.5f;
+			float splitPos = node.bounds.axis(axis).min + extent.s[axis] * 0.5f;
+#else
+			int bestAxis = -1;
+			float parentCost = node.sphere_count * node.bounds.area();
+			float bestPos = 0, bestCost = infinity;
+
+			for(int axis = 0; axis < 3; axis++) {
+				for(uint offset = 0; offset < node.sphere_count; offset++) {
+					Sphere& s = spheres[node.left_first + offset];
+					float candidatePos = s.center.s[axis];
+					float cost = evaluateSAH(node, axis, candidatePos);
+					if(cost < bestCost)
+						bestPos = candidatePos, bestAxis = axis, bestCost = cost;
+				}
+			}
+			if(bestCost >= parentCost) return;
+
+			int axis = bestAxis;
+			float splitPos = bestPos;
+#endif
 
 			int i = node.left_first;
 			int j = i + node.sphere_count - 1;
 			while(i <= j) {
-				if(spheres[i].center.s[axis] < split_position) {
+				if(spheres[i].center.s[axis] < splitPos) {
 					i++;
 				} else {
 					std::swap(spheres[i], spheres[j]);
