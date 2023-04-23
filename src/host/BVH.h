@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-#include <vector>
 
 #include "common/bvh_node.h"
 #include "common/sphere.h"
@@ -23,12 +22,11 @@ class BVH {
 			// GCC complains about memset...
 			for(size_t i = 0; i < 2 * spheres.size(); i++) { pool[i] = {0}; }
 
-			nodesUsed = 1;
 
+			nodesUsed = 1;
 			BVHNode& root = pool[rootNodeIndex];
-			root.first_sphere_index = 0;
 			root.sphere_count = spheres.size();
-			root.left_node = nodesUsed;
+			root.left_first = 0;
 
 			updateNodeBounds(rootNodeIndex);
 			subdivide(rootNodeIndex);
@@ -46,7 +44,7 @@ class BVH {
 			BVHNode& node = pool[node_index];
 			node.bounds.x = node.bounds.y = node.bounds.z = interval_empty();
 
-			for(uint first = node.first_sphere_index, offset = 0; offset < node.sphere_count; offset++) {
+			for(uint first = node.left_first, offset = 0; offset < node.sphere_count; offset++) {
 				const AABB& sb = spheres[first + offset].bbox;
 				AABB& nb = node.bounds;	
 				nb.updateBounds(sb);
@@ -65,7 +63,7 @@ class BVH {
 			if(extent.s[2] > extent.s[axis]) axis = 2;
 			float split_position = node.bounds.axis(axis).min + extent.s[axis] * 0.5f;
 
-			int i = node.first_sphere_index;
+			int i = node.left_first;
 			int j = i + node.sphere_count - 1;
 			while(i <= j) {
 				if(spheres[i].center.s[axis] < split_position) {
@@ -76,16 +74,16 @@ class BVH {
 				}
 			}
 
-			uint left_count = i - node.first_sphere_index;
+			uint left_count = i - node.left_first;
 			if(left_count == 0 || left_count == node.sphere_count) return;
 			int left_child_index = nodesUsed++;
 			int right_child_index = nodesUsed++;
-			pool[left_child_index].first_sphere_index = node.first_sphere_index;
+			pool[left_child_index].left_first = node.left_first;
 			pool[left_child_index].sphere_count = left_count;
-			pool[right_child_index].first_sphere_index = i;
+			pool[right_child_index].left_first = i;
 			pool[right_child_index].sphere_count = node.sphere_count - left_count;
 
-			node.left_node = left_child_index;
+			node.left_first = left_child_index;
 			node.sphere_count = 0;
 
 			updateNodeBounds(left_child_index);
