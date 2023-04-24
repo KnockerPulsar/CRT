@@ -15,35 +15,13 @@ SHARED_STRUCT_START(Lambertian) {
   MaterialId id;
 
 #ifndef OPENCL
-  public:
-  inline static std::vector<Lambertian> instances;
-
-  static MaterialId fromAlbedo(float3 albedo) {
-    auto lambIter = std::find(instances.begin(), instances.end(), (Lambertian){albedo});
-
-    if(lambIter != instances.end()) {
-      return lambIter->id;
-    }        
-
-    return createAndPush(albedo).id;
-  }
-
-  bool operator==(const Lambertian& other) const {
-    return float3Equals(this->albedo, other.albedo);
-  }
-
-  private:
-  static Lambertian createAndPush(float3 albedo) {
-    Lambertian lamb{albedo};
-
-    lamb.id.material_type = MATERIAL_LAMBERTIAN;
-    lamb.id.material_instance = instances.size();
-
-    instances.push_back(lamb);
-
-    return lamb;
-  }
-
+  MATERIAL_DEF(
+      Lambertian, 
+      MATERIAL_LAMBERTIAN,
+      bool operator==(const Lambertian& other) const {
+      return float3Equals(this->albedo, other.albedo);
+      }
+  )
 #endif
 } SHARED_STRUCT_END(Lambertian);
 

@@ -50,7 +50,7 @@ void random_spheres(
   camera.aperature = 0.1;
   camera.focus_dist = 10;
 
-  Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::fromAlbedo(f3(0.5, 0.5, 0.5)));
+  Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::push_back({f3(0.5, 0.5, 0.5)}));
 #if 1
   auto bounds = 10;
   for(int a = -bounds; a < bounds; a++) {
@@ -63,24 +63,24 @@ void random_spheres(
           if(choose_mat < 0.8) {
 
             float3 albedo = randomFloat3() * randomFloat3();
-            Sphere::addToScene(center, 0.2, Lambertian::fromAlbedo(albedo));
+            Sphere::addToScene(center, 0.2, Lambertian::push_back({albedo}));
 
           } else if (choose_mat < 0.95) {
             float3 albedo = randomFloat3Ranged(0.5, 1);
             float fuzz = randomFloatRanged(0, 0.5);
 
-            Sphere::addToScene(center, 0.2, Metal::fromAlbedoFuzz(albedo, fuzz));
+            Sphere::addToScene(center, 0.2, Metal::push_back({albedo, fuzz}));
           } else {
-            Sphere::addToScene(center, 0.2, Dielectric::fromIR(randomFloatRanged(1.0, 10)));
+            Sphere::addToScene(center, 0.2, Dielectric::push_back({randomFloatRanged(1.0, 10)}));
           }
       }
     }
   }
 #endif
 
-  Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::fromIR(1.5));
-  Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::fromAlbedoFuzz(f3(0.7, 0.6, 0.5), 0.0));
-  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::fromAlbedo(f3(0.4, 0.2, 0.1)));
+  Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::push_back({1.5}));
+  Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::push_back({f3(0.7, 0.6, 0.5), 0.0}));
+  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::push_back({f3(0.4, 0.2, 0.1)}));
 }
 
 void parseInt(int& var, const std::string& name, char* intStr) {

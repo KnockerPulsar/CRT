@@ -15,35 +15,13 @@ SHARED_STRUCT_START(Dielectric) {
   MaterialId id;
   
 #ifndef OPENCL
-  public:
-  class CLBuffer; friend CLBuffer;
-  inline static std::vector<Dielectric> instances;
-
-  static MaterialId fromIR(float ir) {
-    auto diIter = std::find(instances.begin(), instances.end(), (Dielectric){ir});
-
-    if(diIter != instances.end()) {
-      return diIter->id;
-    }        
-
-    return createAndPush(ir).id;
-  }
-
-  bool operator==(const Dielectric& other) const {
-    return this->ir == other.ir;
-  }
-
-  private:
-  static Dielectric createAndPush(float ir) {
-    Dielectric dielectric{ir};
-
-    dielectric.id.material_type = MATERIAL_DIELECTRIC;
-    dielectric.id.material_instance = instances.size();
-
-    instances.push_back(dielectric);
-
-    return dielectric;
-  }
+  MATERIAL_DEF(
+      Dielectric, 
+      MATERIAL_DIELECTRIC,
+      bool operator==(const Dielectric& other) const {
+      return this->ir == other.ir;
+      }
+  )
 #endif
 } SHARED_STRUCT_END(Dielectric);
 

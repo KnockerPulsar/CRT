@@ -24,3 +24,27 @@
 auto setupCL() -> std::tuple<cl_context, cl_command_queue, cl_device_id>; 
 auto kernelFromFile( std::string kernelPath, cl_context& context, cl_device_id& devices, std::vector<std::string> includes = std::vector<std::string>()) -> cl_kernel;
 
+#define MATERIAL_DEF(Type, TypeTag, EqualityOpDef)                     \
+  public:                                                              \
+  inline static std::vector<Type> instances;                           \
+                                                                       \
+  static MaterialId push_back(Type mat) {                              \
+    assert (mat.id.material_instance == 0);                            \
+    auto matIter = std::find(instances.begin(), instances.end(), mat); \
+                                                                       \
+    if(matIter != instances.end()) {                                   \
+      return matIter->id;                                              \
+    }                                                                  \
+                                                                       \
+    return createAndPush(mat);                                         \
+  }                                                                    \
+                                                                       \
+  EqualityOpDef                                                        \
+                                                                       \
+  private:                                                             \
+  static MaterialId createAndPush(Type mat) {                          \
+    mat.id.material_type = TypeTag;                                    \
+    mat.id.material_instance = instances.size();                       \
+    instances.push_back(mat);                                          \
+    return mat.id;                                                     \
+  }                                                                    
