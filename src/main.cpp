@@ -51,7 +51,9 @@ void random_spheres(
   camera.aperature = 0.1;
   camera.focus_dist = 10;
 
-  MaterialId groundTextureIndex = Lambertian::construct(Texture::CheckerTexture(0.32, f3(.2, .3, .1), f3(.9, .9, .9)));
+  auto checker1 = Texture::CheckerTexture(0.32/2, f3(.2, .2, .2), f3(.8, .8, .8));
+  auto checker2 = Texture::CheckerTexture(0.32/2, f3(.8, .2, .2), f3(.2, .2, .8));
+  MaterialId groundTextureIndex = Lambertian::construct(Texture::CheckerTexture(.32, checker1, checker2));
   Sphere::addToScene(f3(0, -1000, 0), 1000, groundTextureIndex);
 
 #if 1
@@ -190,7 +192,7 @@ int main(int argc, char** argv) {
   cl_event event;
   std::array<size_t, 2> image_size{(std::size_t)image.width, (std::size_t)image.height};
   std::array<size_t, 2> zero_offset{0, 0};
-  std::array<size_t, 2> local_work_size{1, 1};
+  std::array<size_t, 2> local_work_size{16, 16};
 
   std::cout << fmt("Output file name: %s\n", outputFileName.c_str())
             << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth)
