@@ -35,13 +35,6 @@ bool bvh_intersect(global BVHNode* bvh_node, global Sphere* spheres, Ray* ray, I
 
 	if(node->left_first == 0  && node->sphere_count == 0) return false;
 
-#define POP_STACK \
-			if(stack_ptr == 0) break; \
-			else node = stack[--stack_ptr];
-
-#define PUSH_STACK(value) \
-	stack[stack_ptr++] = value;
-
 	while(1) {
 		
 		// Leaf
@@ -62,7 +55,7 @@ bool bvh_intersect(global BVHNode* bvh_node, global Sphere* spheres, Ray* ray, I
 				}
 			}
 #endif
-			POP_STACK;
+			POP_STACK(node);
 			continue;
 		}
 
@@ -78,7 +71,7 @@ bool bvh_intersect(global BVHNode* bvh_node, global Sphere* spheres, Ray* ray, I
 		}
 
 		if(dist1 >= infinity) {
-			POP_STACK;
+			POP_STACK(node);
 		} else {
 			node = child1;
 			if(dist2 < infinity) PUSH_STACK(child2);

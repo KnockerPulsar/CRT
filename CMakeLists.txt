@@ -9,7 +9,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -fmax-errors=2")
 set(CMAKE_CXX_FLAGS "")
 
 # Enable to use POCL (usually for debugging with GDB)
+
+# if(CMAKE_BUILD_TYPE EQUAL "DEBUG")
 # add_compile_definitions(USE_POCL)
+# endif()
 
 set(SOURCES 
   src/host/CLUtil.cpp

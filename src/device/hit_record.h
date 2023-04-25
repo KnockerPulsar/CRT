@@ -9,6 +9,7 @@ typedef struct {
 	float3 p;
 	float3 normal;
 	float t;
+	float2 uv;
 	bool front_face;
 	MaterialId mat_id;
 } HitRecord;

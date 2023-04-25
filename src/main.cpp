@@ -32,6 +32,7 @@
 #include "common/metal.h"
 #include "common/dielectric.h"
 #include "common/material_id.h"
+#include "common/texture.h"
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
@@ -50,9 +51,11 @@ void random_spheres(
   camera.aperature = 0.1;
   camera.focus_dist = 10;
 
-  Sphere::addToScene(f3(0, -1000, 0), 1000, Lambertian::push_back({f3(0.5, 0.5, 0.5)}));
+  MaterialId groundTextureIndex = Lambertian::construct(Texture::CheckerTexture(0.32, f3(.2, .3, .1), f3(.9, .9, .9)));
+  Sphere::addToScene(f3(0, -1000, 0), 1000, groundTextureIndex);
+
 #if 1
-  auto bounds = 10;
+  auto bounds = 11;
   for(int a = -bounds; a < bounds; a++) {
     for(int b = -bounds; b < bounds; b++) {
         float choose_mat = randomFloat();
@@ -63,7 +66,7 @@ void random_spheres(
           if(choose_mat < 0.8) {
 
             float3 albedo = randomFloat3() * randomFloat3();
-            Sphere::addToScene(center, 0.2, Lambertian::push_back({albedo}));
+            Sphere::addToScene(center, 0.2, Lambertian::construct(Texture::SolidColor(albedo)));
 
           } else if (choose_mat < 0.95) {
             float3 albedo = randomFloat3Ranged(0.5, 1);
@@ -76,11 +79,13 @@ void random_spheres(
       }
     }
   }
-#endif
 
   Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::push_back({1.5}));
   Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::push_back({f3(0.7, 0.6, 0.5), 0.0}));
-  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::push_back({f3(0.4, 0.2, 0.1)}));
+  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::construct(Texture::SolidColor(f3(0.4, 0.2, 0.1))));
+#endif
+  /* Dielectric::push_back({1.5}); */
+  /* Metal::push_back({f3(0.7, 0.6, 0.5), 0.0}); */
 }
 
 void parseInt(int& var, const std::string& name, char* intStr) {
@@ -169,6 +174,7 @@ int main(int argc, char** argv) {
   CLBuffer<Lambertian> lambertians = CLBuffer<Lambertian>::fromVector(context, queue, Lambertian::instances);
   CLBuffer<Metal> metals = CLBuffer<Metal>::fromVector(context, queue, Metal::instances);
   CLBuffer<Dielectric> dielectrics = CLBuffer<Dielectric>::fromVector(context, queue, Dielectric::instances);
+  CLBuffer<Texture> textures = CLBuffer<Texture>::fromVector(context, queue, Texture::instances);
 
   cam.initialize((float)(imageWidth) / imageHeight);
 
@@ -177,17 +183,19 @@ int main(int argc, char** argv) {
   lambertians.uploadToDevice(context);
   metals.uploadToDevice(context);
   dielectrics.uploadToDevice(context);
+  textures.uploadToDevice(context);
 
-  kernelParameters(kernel, 0, image.clImage, spheres, spheres.count(), bvh_nodes, bvh_nodes.count(), seeds, maxDepth, lambertians, metals, dielectrics, cam);
+  kernelParameters(kernel, 0, image.clImage, spheres, spheres.count(), bvh_nodes, bvh_nodes.count(), seeds, maxDepth, lambertians, metals, dielectrics, textures, cam);
 
   cl_event event;
   std::array<size_t, 2> image_size{(std::size_t)image.width, (std::size_t)image.height};
   std::array<size_t, 2> zero_offset{0, 0};
-  std::array<size_t, 2> local_work_size{16, 16};
+  std::array<size_t, 2> local_work_size{1, 1};
 
   std::cout << fmt("Output file name: %s\n", outputFileName.c_str())
             << fmt("Raytracing with resolution: %dx%d, samples: %d, max depth: %d\n", imageWidth, imageHeight, samplesPerPixel, maxDepth)
             << fmt("# Spheres: %d, Lambertians: %d, Metals: %d, Dielectrics: %d\n", spheres.count(), lambertians.count(), metals.count(), dielectrics.count())
+            << fmt("# Textures: %d\n", textures.count())
             << std::setfill('0') << std::setw(5) << std::fixed << std::setprecision(2);
 
   auto start = high_resolution_clock::now();

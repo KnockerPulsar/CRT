@@ -9,6 +9,7 @@
 #include "common/dielectric.h"
 #include "common/camera.h"
 #include "common/bvh_node.h"
+#include "common/texture.h"
 
 #define MAX_DEPTH 64
 
@@ -24,7 +25,9 @@ float3 ray_color(
 	uint2* seed,
 	global Lambertian* lambertians,
 	global Metal* metals,
-	global Dielectric* dielectrics
+	global Dielectric* dielectrics,
+
+	global Texture* textures
 ) {
 	max_depth = min(max_depth, MAX_DEPTH);
 	float3 attenuation = (float3)(1, 1, 1);
@@ -43,12 +46,14 @@ float3 ray_color(
 			Ray scattered;
 			int mat_instance = rec.mat_id.material_instance;
 			int mat_type = rec.mat_id.material_type;
+
 			bool scatter = false;
 			float3 color = (float3)(0, 0, 0);
 
 			switch(mat_type) {
 				case MATERIAL_LAMBERTIAN: {
-					scatter = lambertian_scatter(&lambertians[mat_instance], &r, &rec, &color, &scattered, seed);
+					uint texture_index = rec.mat_id.texture_index;
+					scatter = lambertian_scatter(texture_index, textures, &r, &rec, &color, &scattered, seed);
 				} break;
 				case MATERIAL_METAL: {
 					scatter = metal_scatter(&metals[mat_instance], &r, &rec, &color, &scattered, seed);
@@ -91,6 +96,8 @@ kernel void test_kernel(
 	global Metal* metals,
 	global Dielectric* dielectrics,
 
+	global Texture* textures,
+
 	Camera camera
 ) {
 	const uint width = get_image_width(input);
@@ -112,7 +119,7 @@ kernel void test_kernel(
 	Ray r = camera_get_ray(&camera, u, v, &seed);
 
 	float4 prev_color = read_imagef(input, (int2)(pos.x, pos.y));
-	float3 pixel_color = ray_color(r, spheres, sphere_count, bvh_nodes, bvh_size, max_depth, &seed, lambertians, metals, dielectrics);
+	float3 pixel_color = ray_color(r, spheres, sphere_count, bvh_nodes, bvh_size, max_depth, &seed, lambertians, metals, dielectrics, textures);
 
 	float4 final_color = prev_color + (float4)(pixel_color, 1.0);
 	

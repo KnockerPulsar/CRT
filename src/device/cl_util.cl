@@ -113,5 +113,14 @@ bool closest_hit(
 
 	return hit_anything;
 }
+
+
+#define POP_STACK(var_to_pop_into) \
+			if(stack_ptr == 0) break;  \
+			var_to_pop_into = stack[--stack_ptr]
+
+#define PUSH_STACK(value) \
+	stack[stack_ptr++] = value;
+
 #endif
 

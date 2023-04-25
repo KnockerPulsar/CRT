@@ -180,10 +180,10 @@ auto loadKernel(string path) -> string {
 auto buildClCompileFlags(const vector<string>& includes) -> string {
   std::stringstream s;
 
-  s << "-DOPENCL -cl-std=CL2.0";
+  s << "-DOPENCL -cl-std=CL2.0 ";
 
 #ifdef DEBUG
-  s << " -g ";
+  s << " -g -cl-opt-disable ";
 #else
   s << " -cl-fast-relaxed-math ";
 #endif

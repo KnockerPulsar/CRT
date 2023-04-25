@@ -55,6 +55,25 @@ SHARED_STRUCT_START(Sphere) {
 #include "device/hit_record.h"
 #include "device/ray.h"
 
+float2 compute_uvs(float3 n) {
+	// float theta = acos(-n.y);
+	// v = theta / pi;
+	
+	// float phi = atan2(-n.z, n.x) + pi;
+	// u = phi / (2*pi);
+	
+	// acospi or atan2pi compute their respective fucntions 
+	// but divide over pi.
+	// For v this translates to one function call
+	// For u, this needs some more work
+	// 		u = (atan2(-n.z, n.x) + pi) / (2 * pi)
+	// 		since atan2pi = atant2 / pi, we just divide the whole expression by pi
+	// 		u = (atan2pi(-n.z, n.x) + 1) / 2
+	float v = acospi(-n.y);
+	float u = (atan2pi(-n.z, n.x) + 1) * 0.5f;
+	return (float2)(u, v);
+}
+
 bool sphere_hit(global Sphere* s, const Ray* r, const Interval* ray_t, HitRecord* rec) {
 	float3 oc = r->o - s->center;
 
@@ -79,11 +98,11 @@ bool sphere_hit(global Sphere* s, const Ray* r, const Interval* ray_t, HitRecord
 	rec->p = ray_at(r, root);
 	
 	float3 outward_normal = (rec->p - s->center) / s->radius;
+	rec->uv = compute_uvs(outward_normal);
 	set_face_normal(rec, r, outward_normal);
 
 	rec->mat_id = s->mat_id;
 
 	return true;
 }
-
 #endif
