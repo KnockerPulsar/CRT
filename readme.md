@@ -17,5 +17,5 @@ This project has been tested on an AMD GPU (Vega 6 iGPU) and Nvidia GPU (GTX
 1660Ti).
 
 # Gallery
-![Random spheres, the last scene of `Raytracing in one weekend`]("./screenshots/random_spheres.ppm")
-![Two spheres, a scene that shows off checkered textures. Chapter 4 of `Raytracing, the next weekend`]("./screenshots/two_spheres.ppm")
+![Random spheres, the last scene of `Raytracing in one weekend`](screenshots/random_spheres.ppm)
+![Two spheres, a scene that shows off checkered textures. Chapter 4 of `Raytracing, the next weekend`](screenshots/two_checkered_spheres.ppm)
