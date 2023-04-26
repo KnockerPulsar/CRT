@@ -64,7 +64,7 @@ float3 ray_color(
 			}
 
 			if(!scatter) {
-				return (float3)(0, 0, 0);
+				return (float3)(1, 0, 1);
 			}
 
 			r = scattered;

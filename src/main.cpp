@@ -1,96 +1,18 @@
+#include "host/CLBuffer.h"
 #include "host/CLUtil.h"
 
-#include <algorithm>
-#include <cstdint>
-#include <cstdlib>
-#include <exception>
-#include <ostream>
-#include <stdexcept>
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <memory>
-#include <random>
-#include <string>
-#include <iomanip>
-#include <vector>
-#include <array>
-#include <utility>
-#include <chrono>
-
-#include "host/PPM.h"
-#include "host/Utils.h"
-#include "host/CLBuffer.h"
-#include "host/CLMath.h"
-#include "host/Random.h"
-#include "host/BVH.h"
-#include "host/CLKernel.h"
-
-#include "common/sphere.h"
-#include "common/camera.h"
-#include "common/lambertian.h"
-#include "common/metal.h"
-#include "common/dielectric.h"
-#include "common/material_id.h"
-#include "common/texture.h"
+#include "host/builtin_scenes.h"
+#include <CL/cl.h>
+#include <optional>
+#include <sched.h>
 
 using std::vector, std::string;
 using std::chrono::high_resolution_clock;
 using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 
-void random_spheres(
-    Camera& camera,
-    int& imageWidth, int& imageHeight,
-    int& samplesPerPixel, int& maxDepth
-) {
-  camera.lookfrom = f3(13, 2, 3);
-  camera.lookat   = f3(0, 0, 0);
-  camera.vup      = f3(0, 1, 0);
-  camera.vfov     = 20;
-  camera.aperature = 0.1;
-  camera.focus_dist = 10;
 
-  auto checker1 = Texture::CheckerTexture(0.32/2, f3(.2, .2, .2), f3(.8, .8, .8));
-  auto checker2 = Texture::CheckerTexture(0.32/2, f3(.8, .2, .2), f3(.2, .2, .8));
-  MaterialId groundTextureIndex = Lambertian::construct(Texture::CheckerTexture(.32, checker1, checker2));
-  Sphere::addToScene(f3(0, -1000, 0), 1000, groundTextureIndex);
-
-#if 1
-  auto bounds = 11;
-  for(int a = -bounds; a < bounds; a++) {
-    for(int b = -bounds; b < bounds; b++) {
-        float choose_mat = randomFloat();
-
-        float3 center = f3(a + 0.9f * randomFloat(), randomFloatRanged(0.2f, 0.6f), b + 0.9f * randomFloat());
-
-        if(length(center - f3(4, 0.2, 0)) > 0.9) {
-          if(choose_mat < 0.8) {
-
-            float3 albedo = randomFloat3() * randomFloat3();
-            Sphere::addToScene(center, 0.2, Lambertian::construct(Texture::SolidColor(albedo)));
-
-          } else if (choose_mat < 0.95) {
-            float3 albedo = randomFloat3Ranged(0.5, 1);
-            float fuzz = randomFloatRanged(0, 0.5);
-
-            Sphere::addToScene(center, 0.2, Metal::push_back({albedo, fuzz}));
-          } else {
-            Sphere::addToScene(center, 0.2, Dielectric::push_back({randomFloatRanged(1.0, 10)}));
-          }
-      }
-    }
-  }
-
-  Sphere::addToScene(f3(0, 1, 0), 1.0f, Dielectric::push_back({1.5}));
-  Sphere::addToScene(f3(4, 1, 0), 1.0f, Metal::push_back({f3(0.7, 0.6, 0.5), 0.0}));
-  Sphere::addToScene(f3(-4, 1, 0), 1, Lambertian::construct(Texture::SolidColor(f3(0.4, 0.2, 0.1))));
-#endif
-  /* Dielectric::push_back({1.5}); */
-  /* Metal::push_back({f3(0.7, 0.6, 0.5), 0.0}); */
-}
-
-void parseInt(int& var, const std::string& name, char* intStr) {
+void parseInt(int& var, const std::string& name, const char* intStr) {
 #define BAD_ARG() \
     std::cerr << fmt("Invalid value for the argument \"%s\" (%s). Aborting\n", name.c_str(), intStr); \
     std::exit(EXIT_FAILURE)
@@ -104,16 +26,9 @@ void parseInt(int& var, const std::string& name, char* intStr) {
   if(var < 0) { BAD_ARG(); }
 }
 
-int main(int argc, char** argv) {
-  srand(42);
-
-  int imageWidth = 1920;
-  int imageHeight = 1080;
-  int samplesPerPixel = 1000;
-  int maxDepth = 10;
-  std::string outputFileName = "output.ppm";
-
-#define STR_EQ(str1, str2) (std::strcmp((str1), (str2)) == 0)
+void parseArguments(const char **argv, int argc, int &samplesPerPixel,
+                    int &maxDepth, int &imageWidth, int &imageHeight,
+                    std::string &outputFileName) {
 
   for(int i = 1; i < argc; i++) {
     if(STR_EQ(argv[i], "--samples")) {
@@ -122,16 +37,21 @@ int main(int argc, char** argv) {
     } else if(STR_EQ(argv[i], "--max-depth")) {
       parseInt(maxDepth, "max-depth", argv[i+1]);
       i += 1;
-    }
-    else if(STR_EQ(argv[i], "--image-width")) {
+    } else if(STR_EQ(argv[i], "--image-width")) {
       parseInt(imageWidth, "image-width", argv[i+1]);
       i += 1;
     } else if(STR_EQ(argv[i], "--image-height")) {
       parseInt(imageHeight, "image-height", argv[i+1]);
-      i+= 1;
+      i += 1;
     } else if(STR_EQ(argv[i], "-o") || STR_EQ(argv[i], "--output")) {
       outputFileName = std::string(argv[i+1]);
-      i+= 1;
+      i += 1;
+    } else if (STR_EQ(argv[i], "--scene")) {
+      // --scene is checked before this function in order to figure out which
+      // scene to initially load. If the scene is checked here, the loading of
+      // the scene after this function will override the argument values passed
+      // to the program.
+      i += 1; // Skip --scene and its argument.
     } else {
       int ret = EXIT_SUCCESS;
 
@@ -142,28 +62,75 @@ int main(int argc, char** argv) {
       }
 
       std::cerr << "Usage:\n"
-                << fmt("\t%s [--samples number] [--max-depth number] [--image-width number] [--image-height number] [{--output , -o} filename (default: output.ppm)]\n", argv[0]);
+                << fmt("\t%s [--samples number] [--max-depth number] [--image-width number] [--image-height number] [{--output , -o} filename (default: output.ppm)] [--scene number]\n", argv[0]);
+
+      std::cerr << "\nAvaialble scenes:\n"
+                << "\t 0: Random spheres\n"
+                << "\t 1: Two checkered spheres\n";
 
       std::exit(ret);
     }
   }
+}
 
-  auto [context, queue, device] = setupCL();
-
-  cl_kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
-  
+CLBuffer<uint2> generateSeeds(cl_context& context, cl_command_queue& queue, int imageWidth, int imageHeight) {
   CLBuffer<uint2> seeds(context, queue, CL_MEM_READ_WRITE, imageWidth * imageHeight);
+
   std::uniform_int_distribution<uint> distribution(0, UINT32_MAX);
   std::mt19937 generator{42};
+
   for (int i = 0; i < imageWidth * imageHeight; i++) {
     uint a = distribution(generator);
     uint b = distribution(generator);
-    seeds.push_back((cl_uint2){{a, b}});
+    seeds.push_back(u2(a, b));
   }
-  seeds.uploadToDevice(context);
+
+  return seeds;
+}
+
+std::optional<int> parseSceneArguement(const char** argv, int argc) {
+  for(int i = 0; i < argc; i++) {
+    if(STR_EQ(argv[i], "--scene")) {
+      int s;
+      parseInt(s, "scene", argv[i+1]);
+      return s;
+    }
+  }
+
+  return std::nullopt;
+}
+
+int main(int argc, const char** argv) {
+  srand(42);
 
   Camera cam;
-  random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);
+  cam.focus_dist = 10.f;
+  int imageWidth = 1920;
+  int imageHeight = 1080;
+  int samplesPerPixel = 100;
+  int maxDepth = 10;
+  int scene = 0;
+  std::string outputFileName = "output.ppm";
+
+  if(auto s = parseSceneArguement(argv, argc); s.has_value()) {
+    scene = s.value();
+  }
+
+  switch(scene) {
+    case 1: 
+      two_checkered_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth); break;
+    case 0:
+    default:
+      random_spheres(cam, imageWidth, imageHeight, samplesPerPixel, maxDepth);        break;
+  }
+
+  parseArguments(argv, argc, samplesPerPixel, maxDepth, imageWidth, imageHeight, outputFileName);
+
+  auto [context, queue, device] = setupCL();
+  cl_kernel kernel = kernelFromFile("src/kernels/test_kernel.cl", context, device, {"./src"});
+  
+  auto seeds = generateSeeds(context, queue, imageWidth, imageHeight);
+  seeds.uploadToDevice(context);
 
   // SAH doesn't really help with spheres.
   BVH bvh = BVH(Sphere::instances);

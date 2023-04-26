@@ -8,6 +8,8 @@
 #include "common/material_id.h"
 #include "host/CLMath.h"
 
+#define STR_EQ(str1, str2) (std::strcmp((str1), (str2)) == 0)
+
 // https://stackoverflow.com/a/26221725
 template<typename ... Args>
 std::string fmt( const std::string& format, Args ... args )

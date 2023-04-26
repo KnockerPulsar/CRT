@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_CXX_EXTENSIONS FALSE)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -Wall ")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -fmax-errors=2")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG -Wall -pedantic-errors -fmax-errors=2")
 set(CMAKE_CXX_FLAGS "")
 
 # Enable to use POCL (usually for debugging with GDB)
@@ -29,10 +29,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY          ${PROJECT_SOURCE_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG    ${PROJECT_SOURCE_DIR}/debug)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE  ${PROJECT_SOURCE_DIR}/release)
 set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
-
-link_directories(
-  /usr/local/lib/
-)
 
 add_executable(${PROJECT_NAME} src/main.cpp ${SOURCES})
 

@@ -4,6 +4,8 @@ float3 f3(float x, float y, float z, float w);
 float3 f3(float x, float y, float z);
 float3 f3(float a);
 
+uint2 u2(uint a, uint b);
+
 float3 operator+(float3 a, float3 b);
 float3 operator-(float3 a, float3 b);
 float3 operator*(float3 a, float3 b);

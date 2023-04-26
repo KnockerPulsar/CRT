@@ -44,7 +44,7 @@ SHARED_STRUCT_START(Texture) {
       .odd_texture_index = oddIndex,
     };
 
-    Texture c = (Texture){ .type = TextureChecker, .as_checker_texture = checker };
+    Texture c = { .type = TextureChecker, .as_checker_texture = checker };
     return Texture::push_back(c);
   }
 

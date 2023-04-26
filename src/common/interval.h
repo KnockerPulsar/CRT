@@ -6,17 +6,13 @@ typedef struct {
 	float min, max;
 } Interval;
 
-Interval interval_empty() { 
-	return (Interval){+infinity, -infinity};
-}
-
-Interval interval_universe() { 
-	return (Interval){-infinity, +infinity};
-}
-
 Interval interval(float min, float max) {
-	return (Interval){min, max};
+	Interval i = {min, max};
+	return i;
 }
+
+Interval interval_empty()    { return interval(+infinity, -infinity); }
+Interval interval_universe() { return interval(-infinity, +infinity); }
 
 bool interval_contains(const Interval* i, float x) { return i->min <= x && x <= i->max; }
 

@@ -11,6 +11,8 @@ float3 f3(float x, float y, float z, float w) { return {{ x, y, z, w }}; }
 float3 f3(float x, float y, float z) { return f3(x, y, z, 0); }
 float3 f3(float a) { return f3(a, a, a, 0); }
 
+uint2 u2(uint a, uint b) { return  {{a, b}}; }
+
 float3 operator+(float3 a, float3 b) { return FLOAT3_ELEMENTWISE_OP(a, b, +); }
 float3 operator-(float3 a, float3 b) { return FLOAT3_ELEMENTWISE_OP(a, b, -); }
 float3 operator*(float3 a, float3 b) { return FLOAT3_ELEMENTWISE_OP(a, b, *); }
