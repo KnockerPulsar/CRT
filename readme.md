@@ -1,4 +1,4 @@
-# CRT: OpenCL Raytracer
+# CRT: An OpenCL Raytracer
 This project is a mishmash of Peter Shirley's fantastic [raytracing
 books](https://raytracing.github.io/), and Jacco Bikker's equally fantastic
 [BVH building
@@ -13,7 +13,7 @@ You should have OpenCL installed on your computer, and a C++17 compiler (tested
 on gcc), otherwise, this project is self contained. You can just run
 `build_release.sh`.
 
-This project has been tested on an AMD GPU (Vega 6 iGPU) and Nvidia GPU (GTX
+This project has been tested on an AMD GPU (Vega 6 iGPU) and an Nvidia GPU (GTX
 1660Ti).
 
 # Gallery
